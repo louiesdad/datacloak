@@ -1,5 +1,6 @@
 use regex::{Captures, Regex};
 use std::collections::HashMap;
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
 use crate::config::Rule;
 use thiserror::Error;
 
@@ -7,6 +8,8 @@ use thiserror::Error;
 pub enum ObfuscationError {
     #[error("regex compile error: {0}")]
     RegexCompile(String),
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 pub struct Obfuscator {
@@ -35,7 +38,6 @@ impl Obfuscator {
     pub fn obfuscate_text(&mut self, input: &str) -> String {
         let mut intermediate = input.to_string();
         for (regex, label) in &self.rules {
-            let mut counter = 0;
             let placeholder_counter = &mut self.placeholder_counter;
             let placeholder_map = &mut self.placeholder_map;
             let reverse_map = &mut self.reverse_map;
@@ -49,7 +51,6 @@ impl Obfuscator {
                         *placeholder_counter += 1;
                         placeholder_map.insert(token.clone(), matched.clone());
                         reverse_map.insert(matched, token.clone());
-                        counter += 1;
                         token
                     }
                 })
@@ -60,5 +61,27 @@ impl Obfuscator {
 
     pub fn placeholder_map(&self) -> &HashMap<String, String> {
         &self.placeholder_map
+    }
+
+    pub async fn obfuscate_stream<R, W>(
+        &mut self,
+        mut reader: R,
+        mut writer: W,
+    ) -> Result<(), ObfuscationError>
+    where
+        R: AsyncBufRead + Unpin,
+        W: AsyncWrite + Unpin,
+    {
+        let mut line = String::new();
+        loop {
+            line.clear();
+            let n = reader.read_line(&mut line).await?;
+            if n == 0 {
+                break;
+            }
+            let obf = self.obfuscate_text(&line);
+            writer.write_all(obf.as_bytes()).await?;
+        }
+        Ok(())
     }
 }
