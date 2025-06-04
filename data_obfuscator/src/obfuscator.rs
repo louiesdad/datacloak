@@ -63,10 +63,6 @@ impl Obfuscator {
         intermediate
     }
 
-    pub fn placeholder_map(&self) -> &HashMap<String, String> {
-        &self.placeholder_map
-    }
-
     pub async fn obfuscate_stream<R, W>(
         &mut self,
         mut reader: R,
@@ -84,5 +80,9 @@ impl Obfuscator {
         }
         writer.flush().await?;
         Ok(())
+    }
+
+    pub fn placeholder_map(&self) -> &HashMap<String, String> {
+        &self.placeholder_map
     }
 }
