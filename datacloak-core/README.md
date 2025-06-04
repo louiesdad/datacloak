@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../logo.png" alt="DataCloak Logo" width="200"/>
+</p>
+
 # DataCloak Core Library
 
 High-performance Rust library for large-scale data obfuscation with automatic PII detection and LLM-based churn prediction.
