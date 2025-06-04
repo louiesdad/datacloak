@@ -11,3 +11,12 @@ pub enum AppError {
     #[error("other error: {0}")]
     Other(String),
 }
+
+#[derive(Debug, Error)]
+pub enum LlmError {
+    #[error("HTTP request error: {0}")]
+    HttpError(#[from] reqwest::Error),
+
+    #[error("Invalid response format")]
+    InvalidResponse,
+}

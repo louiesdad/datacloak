@@ -1,4 +1,5 @@
 use reqwest::Client;
+use serde_json::Value;
 use thiserror::Error;
 
 pub struct LlmClient {
@@ -11,8 +12,8 @@ pub struct LlmClient {
 pub enum LlmError {
     #[error("http error: {0}")]
     Http(#[from] reqwest::Error),
-    #[error("invalid response: {0}")]
-    InvalidResponse(String),
+    #[error("invalid response")]
+    InvalidResponse,
 }
 
 impl LlmClient {
@@ -21,8 +22,29 @@ impl LlmClient {
     }
 
     pub async fn chat(&self, input: &str) -> Result<String, LlmError> {
-        // For tests we just echo the input back.
-        let _ = (&self.endpoint, &self.api_key); // suppress unused
-        Ok(format!("echo: {}", input))
+        let request_body = serde_json::json!({
+            "model": "gpt-4",
+            "messages": [
+                { "role": "system", "content": "You are a secure data processor." },
+                { "role": "user", "content": input }
+            ]
+        });
+
+        let resp: Value = self
+            .client
+            .post(&self.endpoint)
+            .bearer_auth(&self.api_key)
+            .json(&request_body)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        let content = resp["choices"][0]["message"]["content"]
+            .as_str()
+            .ok_or(LlmError::InvalidResponse)?
+            .to_string();
+        Ok(content)
     }
 }
