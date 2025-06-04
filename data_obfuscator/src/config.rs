@@ -20,7 +20,10 @@ pub fn load_config(
     // CLI flags take precedence
     builder = builder
         .set_override("llm_endpoint", llm_endpoint.to_string())?
-        .set_override("api_key", api_key.clone().unwrap_or_else(|| std::env::var("OPENAI_API_KEY").unwrap_or_default()))?;
+        .set_override(
+            "api_key",
+            api_key.clone().unwrap_or_else(|| std::env::var("OPENAI_API_KEY").unwrap_or_default()),
+        )?;
 
     let cfg = builder.build()?;
 

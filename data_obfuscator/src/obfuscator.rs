@@ -40,7 +40,6 @@ impl Obfuscator {
     pub fn obfuscate_text(&mut self, input: &str) -> String {
         let mut intermediate = input.to_string();
         for (regex, label) in &self.rules {
-            let mut counter = 0;
             let placeholder_counter = &mut self.placeholder_counter;
             let placeholder_map = &mut self.placeholder_map;
             let reverse_map = &mut self.reverse_map;
@@ -54,7 +53,6 @@ impl Obfuscator {
                         *placeholder_counter += 1;
                         placeholder_map.insert(token.clone(), matched.clone());
                         reverse_map.insert(matched, token.clone());
-                        counter += 1;
                         token
                     }
                 })
