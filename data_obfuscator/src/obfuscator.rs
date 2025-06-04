@@ -1,6 +1,6 @@
 use regex::{Captures, Regex};
 use std::collections::HashMap;
-use tokio::io::{self, AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
 use crate::config::Rule;
 use thiserror::Error;
 
@@ -10,6 +10,8 @@ pub enum ObfuscationError {
     RegexCompile(String),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("tokio task error: {0}")]
+    Tokio(#[from] tokio::task::JoinError),
 }
 
 pub struct Obfuscator {
@@ -61,21 +63,22 @@ impl Obfuscator {
         intermediate
     }
 
-    pub async fn obfuscate_stream<R, W>(&mut self, mut reader: R, mut writer: W) -> Result<(), ObfuscationError>
+    pub async fn obfuscate_stream<R, W>(
+        &mut self,
+        mut reader: R,
+        mut writer: W,
+    ) -> Result<(), ObfuscationError>
     where
         R: AsyncBufRead + Unpin,
         W: AsyncWrite + Unpin,
     {
-        let mut line = String::new();
-        loop {
-            let bytes = reader.read_line(&mut line).await?;
-            if bytes == 0 {
-                break;
-            }
+        let mut lines = reader.lines();
+        while let Some(line) = lines.next_line().await? {
             let obfuscated = self.obfuscate_text(&line);
             writer.write_all(obfuscated.as_bytes()).await?;
-            line.clear();
+            writer.write_all(b"\n").await?;
         }
+        writer.flush().await?;
         Ok(())
     }
 
