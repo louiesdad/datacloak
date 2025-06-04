@@ -8,12 +8,6 @@
   <strong>High-performance data obfuscation library with automatic PII detection and LLM-based analytics</strong>
 </p>
 
-<p align="center">
-  <a href="https://github.com/yourusername/datacloak/actions"><img src="https://github.com/yourusername/datacloak/workflows/CI/badge.svg" alt="CI Status"></a>
-  <a href="https://codecov.io/gh/yourusername/datacloak"><img src="https://codecov.io/gh/yourusername/datacloak/branch/main/graph/badge.svg" alt="Coverage"></a>
-  <a href="https://crates.io/crates/datacloak"><img src="https://img.shields.io/crates/v/datacloak.svg" alt="Crates.io"></a>
-  <a href="https://docs.rs/datacloak"><img src="https://docs.rs/datacloak/badge.svg" alt="Documentation"></a>
-</p>
 
 ## Overview
 
