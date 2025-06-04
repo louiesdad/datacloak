@@ -10,6 +10,13 @@ pub struct Metrics {
     pub error_count: Counter,
 }
 
+impl Default for Metrics {
+    fn default() -> Self {
+        let registry = Registry::new();
+        Self::new(&registry)
+    }
+}
+
 impl Metrics {
     pub fn new(registry: &Registry) -> Self {
         let request_count =
