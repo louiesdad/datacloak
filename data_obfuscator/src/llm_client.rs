@@ -1,12 +1,19 @@
 use reqwest::Client;
 use serde_json::Value;
-
-use crate::errors::LlmError;
+use thiserror::Error;
 
 pub struct LlmClient {
     endpoint: String,
     api_key: String,
     client: Client,
+}
+
+#[derive(Debug, Error)]
+pub enum LlmError {
+    #[error("http error: {0}")]
+    Http(#[from] reqwest::Error),
+    #[error("invalid response")]
+    InvalidResponse,
 }
 
 impl LlmClient {
@@ -29,13 +36,10 @@ impl LlmClient {
             .bearer_auth(&self.api_key)
             .json(&request_body)
             .send()
-            .await
-            .map_err(LlmError::HttpError)?
-            .error_for_status()
-            .map_err(LlmError::HttpError)?
+            .await?
+            .error_for_status()?
             .json()
-            .await
-            .map_err(LlmError::HttpError)?;
+            .await?;
 
         let content = resp["choices"][0]["message"]["content"]
             .as_str()
