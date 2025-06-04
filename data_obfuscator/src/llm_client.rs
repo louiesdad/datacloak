@@ -1,5 +1,7 @@
-use anyhow::Result;
 use reqwest::Client;
+use serde_json::Value;
+
+use crate::errors::LlmError;
 
 pub struct LlmClient {
     endpoint: String,
@@ -12,9 +14,33 @@ impl LlmClient {
         Self { endpoint, api_key, client: Client::new() }
     }
 
-    pub async fn chat(&self, input: &str) -> Result<String> {
-        // For tests we just echo the input back.
-        let _ = (&self.endpoint, &self.api_key); // suppress unused
-        Ok(format!("echo: {}", input))
+    pub async fn chat(&self, input: &str) -> Result<String, LlmError> {
+        let request_body = serde_json::json!({
+            "model": "gpt-4",
+            "messages": [
+                { "role": "system", "content": "You are a secure data processor." },
+                { "role": "user", "content": input }
+            ]
+        });
+
+        let resp: Value = self
+            .client
+            .post(&self.endpoint)
+            .bearer_auth(&self.api_key)
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(LlmError::HttpError)?
+            .error_for_status()
+            .map_err(LlmError::HttpError)?
+            .json()
+            .await
+            .map_err(LlmError::HttpError)?;
+
+        let content = resp["choices"][0]["message"]["content"]
+            .as_str()
+            .ok_or(LlmError::InvalidResponse)?
+            .to_string();
+        Ok(content)
     }
 }
