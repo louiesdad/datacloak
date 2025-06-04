@@ -5,9 +5,8 @@ pub struct Metrics {
 }
 
 impl Metrics {
-    pub fn new() -> Self {
+    pub fn new(registry: &Registry) -> Self {
         let request_count = IntCounter::new("request_count", "Number of requests").unwrap();
-        let registry = Registry::new();
         registry.register(Box::new(request_count.clone())).unwrap();
         Self { request_count }
     }

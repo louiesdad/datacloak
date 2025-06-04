@@ -23,12 +23,19 @@ pub enum ConfigError {
     Json(#[from] serde_json::Error),
 }
 
-pub fn load_config(path: &str, llm_endpoint: &str, api_key: &str) -> Result<AppConfig, ConfigError> {
+pub fn load_config(
+    path: &str,
+    llm_endpoint: &str,
+    api_key: &Option<String>,
+) -> Result<AppConfig, ConfigError> {
     let content = fs::read_to_string(path)?;
     let rules: Vec<Rule> = serde_json::from_str(&content)?;
+    let key = api_key
+        .clone()
+        .unwrap_or_else(|| std::env::var("OPENAI_API_KEY").unwrap_or_default());
     Ok(AppConfig {
         rules,
         llm_endpoint: llm_endpoint.to_string(),
-        api_key: api_key.to_string(),
+        api_key: key,
     })
 }
