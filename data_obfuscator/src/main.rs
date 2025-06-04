@@ -27,7 +27,7 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
-    logger::init();
+    logger::init_logging();
     let cli = Cli::parse();
     let cfg = load_config(&cli.rules, &cli.llm_endpoint, &cli.api_key)?;
     let mut obfuscator = Obfuscator::new(&cfg.rules)?;
