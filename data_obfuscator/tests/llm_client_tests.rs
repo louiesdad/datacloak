@@ -1,9 +1,25 @@
 use data_obfuscator::llm_client::LlmClient;
 use mockito::{mock, Matcher};
+use serde_json::Value;
 
 #[tokio::test]
 async fn echo_chat() {
-    let client = LlmClient::new("http://localhost".to_string(), "key".to_string());
+    let _m = mock("POST", "/")
+        .match_header("authorization", "Bearer key")
+        .match_header("content-type", Matcher::Regex("application/json".into()))
+        .with_status(200)
+        .with_body_from_request(|req| {
+            let body: Value = serde_json::from_slice(&req.body).unwrap();
+            let user_content = body["messages"][1]["content"].as_str().unwrap();
+            format!(
+                "{{ \"choices\": [ {{ \"message\": {{ \"content\": \"echo: {}\" }} }} ] }}",
+                user_content
+            )
+            .into_bytes()
+        })
+        .create();
+
+    let client = LlmClient::new(mockito::server_url(), "key".to_string());
     let reply = client.chat("hello").await.unwrap();
     assert_eq!(reply, "echo: hello");
 }
