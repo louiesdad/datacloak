@@ -1,5 +1,6 @@
 use regex::{Captures, Regex};
 use std::collections::HashMap;
+use tokio::io::{self, AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
 use crate::config::Rule;
 use thiserror::Error;
 
@@ -7,6 +8,8 @@ use thiserror::Error;
 pub enum ObfuscationError {
     #[error("regex compile error: {0}")]
     RegexCompile(String),
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 pub struct Obfuscator {
@@ -56,6 +59,24 @@ impl Obfuscator {
                 .into_owned();
         }
         intermediate
+    }
+
+    pub async fn obfuscate_stream<R, W>(&mut self, mut reader: R, mut writer: W) -> Result<(), ObfuscationError>
+    where
+        R: AsyncBufRead + Unpin,
+        W: AsyncWrite + Unpin,
+    {
+        let mut line = String::new();
+        loop {
+            let bytes = reader.read_line(&mut line).await?;
+            if bytes == 0 {
+                break;
+            }
+            let obfuscated = self.obfuscate_text(&line);
+            writer.write_all(obfuscated.as_bytes()).await?;
+            line.clear();
+        }
+        Ok(())
     }
 
     pub fn placeholder_map(&self) -> &HashMap<String, String> {
