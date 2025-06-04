@@ -11,6 +11,6 @@ fn app_error_from_obfuscation_io() {
 
 #[test]
 fn app_error_from_llm_invalid_response() {
-    let app: AppError = LlmError::InvalidResponse("bad".into()).into();
-    assert!(matches!(app, AppError::Llm(LlmError::InvalidResponse(_))));
+    let app: AppError = LlmError::InvalidResponse.into();
+    assert!(matches!(app, AppError::Llm(LlmError::InvalidResponse)));
 }
