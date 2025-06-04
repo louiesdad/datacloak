@@ -7,6 +7,10 @@ use thiserror::Error;
 pub enum ObfuscationError {
     #[error("regex compile error: {0}")]
     RegexCompile(String),
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("tokio task error: {0}")]
+    Tokio(#[from] tokio::task::JoinError),
 }
 
 pub struct Obfuscator {

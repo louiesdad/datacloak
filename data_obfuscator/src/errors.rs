@@ -6,8 +6,8 @@ pub enum AppError {
     Config(#[from] crate::config::ConfigError),
     #[error("obfuscation error: {0}")]
     Obfuscation(#[from] crate::obfuscator::ObfuscationError),
-    #[error("http error: {0}")]
-    Http(#[from] reqwest::Error),
+    #[error("llm error: {0}")]
+    Llm(#[from] crate::llm_client::LlmError),
     #[error("other error: {0}")]
     Other(String),
 }
