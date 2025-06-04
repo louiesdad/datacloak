@@ -1,7 +1,7 @@
 # DataCloak
 
 <p align="center">
-  <img src="https://github.com/louiesdad/datacloak/raw/main/logo.png" alt="DataCloak Logo" width="150"/>
+  <img src="logo.jpg" alt="DataCloak Logo" width="150"/>
 </p>
 
 <p align="center">
