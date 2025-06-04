@@ -9,6 +9,9 @@ pub mod obfuscator;
 pub mod patterns;
 pub mod streaming;
 
+#[cfg(test)]
+mod test_coverage_improvements;
+
 // Re-exports
 pub use cache::ObfuscationCache;
 pub use data_source::{DataSource, DataSourceConfig, RecordBatch};
