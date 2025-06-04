@@ -29,7 +29,7 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
-    logger::init();
+    logger::init_logging();
     let cli = Cli::parse();
     let registry = Registry::new();
     let metrics = Metrics::new(&registry);
