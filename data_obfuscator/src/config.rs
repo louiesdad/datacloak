@@ -1,3 +1,31 @@
+use std::fs;
+use serde::Deserialize;
+use config as config_rs;
+use thiserror::Error;
+
+#[derive(Debug, Deserialize)]
+pub struct Rule {
+    pub pattern: String,
+    pub label: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AppConfig {
+    pub rules: Vec<Rule>,
+    pub llm_endpoint: String,
+    pub api_key: String,
+}
+
+#[derive(Debug, Error)]
+pub enum ConfigError {
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("parse error: {0}")]
+    Parse(#[from] serde_json::Error),
+    #[error("config error: {0}")]
+    Config(#[from] config_rs::ConfigError),
+}
+
 pub fn load_config(
     path: &str,
     llm_endpoint: &str,
