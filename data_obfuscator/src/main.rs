@@ -13,8 +13,8 @@ use config::load_config;
 use llm_client::LlmClient;
 use deobfuscator::deobfuscate_text;
 use metrics::Metrics;
-use tokio::io::BufReader;
 use prometheus::Registry;
+use tokio::io::BufReader;
 use std::path::Path;
 use tracing::{info, error};
 
@@ -42,12 +42,13 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
-    logger::init();
+    logger::init_logging();
     let cli = Cli::parse();
-    let cfg = load_config(&cli.rules, &cli.llm_endpoint, &cli.api_key)?;
-
     let registry = Registry::new();
     let metrics = Metrics::new(&registry);
+
+    let overall_timer = metrics.request_duration.start_timer();
+    let cfg = load_config(&cli.rules, &cli.llm_endpoint, &cli.api_key)?;
 
     let mut obfuscator = Obfuscator::new(&cfg.rules)?;
 
@@ -58,13 +59,18 @@ async fn main() -> Result<(), AppError> {
             "Customer ID: {}\nName: John Doe\nEmail: john{}@example.com\nPhone: 555-1234\nNotes: Example\n",
             id, id
         );
-        obfuscator.obfuscate_text(&raw_blob)
+        let obf_timer = metrics.obfuscation_duration.start_timer();
+        let text = obfuscator.obfuscate_text(&raw_blob);
+        obf_timer.observe_duration();
+        text
     } else if let Some(path_str) = cli.document_path.clone() {
         info!("Reading document from {}", path_str);
         let file = tokio::fs::File::open(Path::new(&path_str)).await?;
         let reader = BufReader::new(file);
         let mut buf = Vec::new();
+        let obf_timer = metrics.obfuscation_duration.start_timer();
         obfuscator.obfuscate_stream(reader, &mut buf).await?;
+        obf_timer.observe_duration();
         String::from_utf8(buf).map_err(|e| AppError::Other(e.to_string()))?
     } else {
         error!("Either --customer-id or --document-path must be provided.");
@@ -77,8 +83,12 @@ async fn main() -> Result<(), AppError> {
 
     let client = LlmClient::new(cfg.llm_endpoint, cfg.api_key);
     info!("Sending obfuscated payload to LLM");
+    let llm_timer = metrics.llm_duration.start_timer();
     let obfuscated_reply = client.chat(&obfuscated_text).await?;
+    llm_timer.observe_duration();
+
     metrics.request_count.inc();
+    overall_timer.observe_duration();
 
     info!("De-obfuscating LLM response");
     let final_reply = deobfuscate_text(&obfuscated_reply, obfuscator.placeholder_map());
