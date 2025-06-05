@@ -532,6 +532,422 @@ if unusual_amount > 1000: fraud_risk = 0.8 + random(0.2)
 
 DataCloak excels as a **privacy-preserving data preparation tool** that enables safe AI analysis. The analysis quality depends on the downstream AI models and prompting strategies, but the privacy protection and data preparation capabilities are production-ready.
 
+## Prompt Engineering for DataCloak Analysis
+
+Since DataCloak's analysis accuracy heavily depends on the prompts sent to LLMs, here are proven prompt templates for each analysis type:
+
+### Customer Churn Prediction Prompts
+
+#### Basic Churn Analysis Prompt
+```
+You are a customer success expert analyzing obfuscated customer data for churn prediction.
+
+DATA CONTEXT:
+- Customer identifiers are obfuscated as [EMAIL-XXX], [PHONE-XXX], [NAME-XXX] 
+- All PII has been replaced with tokens, but behavioral data is preserved
+- Analyze patterns without attempting to identify real customers
+
+ANALYSIS TASK:
+For each customer record, provide:
+1. Churn probability (0.0-1.0)
+2. Confidence level (0.0-1.0) 
+3. Primary risk factors
+4. Reasoning for the prediction
+
+KEY CHURN INDICATORS TO CONSIDER:
+- Support contact frequency (>3 tickets = high risk)
+- Payment delays or failures (any delays = moderate risk)
+- Usage pattern changes (decreasing = risk indicator)
+- Account age vs. engagement (mature low-engagement = risk)
+- Purchase recency (>90 days = risk indicator)
+- Contract/subscription status changes
+
+OUTPUT FORMAT:
+```json
+{
+  "customer_id": "[CUSTOMER-ID]",
+  "churn_probability": 0.85,
+  "confidence": 0.92,
+  "risk_level": "high",
+  "primary_factors": ["high_support_contact", "payment_delays", "decreased_usage"],
+  "reasoning": "Customer shows 5 support tickets in last month, 3 payment delays, and 40% decrease in usage",
+  "recommended_actions": ["immediate_outreach", "retention_offer", "success_manager_assignment"]
+}
+```
+
+OBFUSCATED CUSTOMER DATA:
+[Insert obfuscated customer records here]
+```
+
+#### Advanced Churn Prompt with Segmentation
+```
+You are a data scientist specializing in customer lifecycle analysis and churn prediction for SaaS businesses.
+
+PRIVACY NOTICE: All customer PII has been obfuscated with tokens ([EMAIL-XXX], [PHONE-XXX], etc.). Focus on behavioral patterns, not identity.
+
+ANALYSIS OBJECTIVES:
+1. Predict individual customer churn probability
+2. Identify customer segments and risk patterns
+3. Recommend intervention strategies
+4. Calculate confidence intervals for predictions
+
+CHURN RISK FRAMEWORK:
+- IMMEDIATE RISK (>0.8): Likely to churn within 30 days
+- HIGH RISK (0.6-0.8): Likely to churn within 90 days  
+- MODERATE RISK (0.3-0.6): At-risk, needs monitoring
+- LOW RISK (<0.3): Stable, good retention likelihood
+
+BEHAVIORAL INDICATORS (weighted importance):
+- Support tickets: 0-1 (low), 2-3 (moderate), 4+ (high risk) [Weight: 0.25]
+- Payment issues: None (low), 1-2 delays (moderate), 3+ (high) [Weight: 0.30]
+- Usage trends: Increasing (protective), stable (neutral), decreasing (risk) [Weight: 0.20]
+- Engagement: Active (protective), sporadic (moderate), minimal (risk) [Weight: 0.15]
+- Account tenure: <6mo (risk), 6-24mo (stable), >24mo varies [Weight: 0.10]
+
+CUSTOMER SEGMENTATION:
+- Power Users: High usage + engagement, low churn risk
+- At-Risk Champions: High historical value but declining engagement
+- Support-Heavy: Frequent support contact, mixed churn risk
+- Payment Strugglers: Financial issues, high churn risk
+- Ghosts: Low engagement, moderate churn risk
+
+For each customer, analyze and return:
+```json
+{
+  "customer_analysis": {
+    "customer_id": "[CUSTOMER-ID]",
+    "churn_probability": 0.73,
+    "confidence_interval": [0.65, 0.81],
+    "risk_category": "high",
+    "customer_segment": "at_risk_champion",
+    "days_to_likely_churn": 45,
+    "risk_factors": {
+      "support_contact": {"score": 0.8, "details": "5 tickets in 30 days"},
+      "payment_health": {"score": 0.6, "details": "2 payment delays"},
+      "usage_trend": {"score": 0.7, "details": "30% decrease over 60 days"},
+      "engagement": {"score": 0.5, "details": "last login 14 days ago"}
+    },
+    "protective_factors": ["long_tenure", "high_historical_value"],
+    "intervention_strategy": {
+      "urgency": "high",
+      "recommended_actions": [
+        "immediate_success_manager_outreach",
+        "technical_health_check", 
+        "retention_offer_consideration"
+      ],
+      "timeline": "within_7_days"
+    }
+  }
+}
+```
+
+CUSTOMER DATA: [Insert obfuscated records]
+```
+
+### Medical Records Analysis Prompts
+
+#### HIPAA-Compliant Population Health Prompt
+```
+You are a public health epidemiologist analyzing de-identified patient data for population health insights.
+
+PRIVACY COMPLIANCE:
+- All PHI has been obfuscated ([NAME-XXX], [SSN-XXX], [MRN-XXX])
+- Analysis must comply with HIPAA Safe Harbor method
+- Focus on aggregate trends, not individual patient identification
+- Medical codes and clinical data are preserved for analysis
+
+ANALYSIS OBJECTIVES:
+1. Identify disease prevalence trends
+2. Analyze care utilization patterns  
+3. Assess treatment effectiveness
+4. Detect population health risks
+
+CLINICAL DATA ELEMENTS TO ANALYZE:
+- ICD-10 diagnosis codes (preserved)
+- CPT procedure codes (preserved) 
+- Visit frequencies and patterns
+- Treatment outcomes and responses
+- Demographic patterns (age groups, geographic regions)
+- Temporal trends (seasonal, annual)
+
+FOCUS AREAS:
+- Chronic disease management (diabetes, hypertension, COPD)
+- Preventive care utilization
+- Emergency department usage patterns
+- Medication adherence indicators
+- Care coordination effectiveness
+
+OUTPUT REQUIREMENTS:
+```json
+{
+  "population_analysis": {
+    "study_period": "Q1-Q4 2024",
+    "total_patients": "[PATIENT-COUNT]",
+    "key_findings": [
+      {
+        "finding": "diabetes_prevalence_increase",
+        "description": "Type 2 diabetes (E11.9) prevalence increased 12% year-over-year",
+        "affected_population": "[AGE-GROUP-001] demographic",
+        "clinical_significance": "high",
+        "recommendation": "enhanced_screening_program"
+      }
+    ],
+    "disease_trends": {
+      "diabetes": {"prevalence": 0.124, "trend": "increasing", "change": "+12%"},
+      "hypertension": {"prevalence": 0.285, "trend": "stable", "change": "+2%"}
+    },
+    "care_patterns": {
+      "avg_visits_per_patient": 4.2,
+      "emergency_utilization": "15% of patients",
+      "preventive_care_compliance": "67%"
+    },
+    "risk_factors": [
+      "seasonal_flu_uptick_in_november",
+      "increased_mental_health_presentations"
+    ]
+  }
+}
+```
+
+DE-IDENTIFIED PATIENT DATA: [Insert obfuscated medical records]
+```
+
+#### Clinical Research Prompt
+```
+You are a clinical researcher analyzing anonymized patient cohort data for treatment effectiveness studies.
+
+DATA PRIVACY: All patient identifiers obfuscated. Focus on clinical patterns and outcomes.
+
+RESEARCH QUESTIONS:
+1. Treatment response rates by intervention type
+2. Adverse event patterns and frequencies
+3. Patient pathway analysis through care continuum
+4. Outcome predictors and risk stratification
+
+CLINICAL ANALYSIS FRAMEWORK:
+- Primary endpoints: Treatment success/failure rates
+- Secondary endpoints: Time to improvement, adverse events
+- Covariates: Age groups, comorbidity patterns, treatment history
+- Confounders: Previous treatments, severity indicators
+
+STATISTICAL CONSIDERATIONS:
+- Report confidence intervals for all estimates
+- Note sample sizes for subgroup analyses
+- Identify potential selection biases
+- Flag associations vs. causal relationships
+
+For each clinical pattern identified:
+```json
+{
+  "clinical_finding": {
+    "intervention": "procedure_99213",
+    "outcome_measure": "symptom_improvement",
+    "success_rate": 0.847,
+    "confidence_interval": [0.823, 0.871],
+    "sample_size": 1247,
+    "time_to_improvement": "median_14_days",
+    "adverse_events": {
+      "rate": 0.034,
+      "severity": "mostly_mild",
+      "common_events": ["mild_discomfort", "temporary_swelling"]
+    },
+    "subgroup_analysis": {
+      "[AGE-GROUP-001]": {"success_rate": 0.92, "n": 456},
+      "[AGE-GROUP-002]": {"success_rate": 0.78, "n": 791}
+    },
+    "clinical_significance": "statistically_and_clinically_significant"
+  }
+}
+```
+
+ANONYMIZED CLINICAL DATA: [Insert records]
+```
+
+### Financial Fraud Detection Prompts
+
+#### Real-Time Fraud Scoring Prompt
+```
+You are a financial fraud detection specialist analyzing obfuscated transaction data for anomaly detection.
+
+DATA SECURITY: All PII obfuscated ([CARD-XXX], [ACCOUNT-XXX], [SSN-XXX]). Focus on behavioral patterns.
+
+FRAUD DETECTION FRAMEWORK:
+- Analyze transaction patterns, amounts, timing, and merchant categories
+- Compare against baseline behavior for each account
+- Identify anomalies that suggest fraudulent activity
+- Calculate fraud probability with confidence scores
+
+KEY FRAUD INDICATORS:
+- Amount anomalies (>3x normal or >$1000 for typically small transactions)
+- Time patterns (off-hours: 11PM-6AM, holidays, weekends)
+- Geographic anomalies (unusual states/countries)
+- Merchant category switches (grocery→gambling, retail→cash_advance)
+- Velocity anomalies (>3 transactions in 10 minutes)
+- Account behavior changes (dormant→active, conservative→aggressive)
+
+TRANSACTION RISK LEVELS:
+- CRITICAL (>0.9): Block transaction, immediate investigation
+- HIGH (0.7-0.9): Hold for manual review
+- MODERATE (0.4-0.7): Enhanced monitoring
+- LOW (<0.4): Process normally
+
+For each transaction, analyze and return:
+```json
+{
+  "fraud_analysis": {
+    "transaction_id": "[TXN-ID]",
+    "account_id": "[ACCOUNT-XXX]",
+    "fraud_probability": 0.89,
+    "risk_level": "high",
+    "confidence": 0.94,
+    "anomaly_factors": {
+      "amount_anomaly": {
+        "score": 0.85,
+        "details": "$5,247 vs $47 average",
+        "factor": "amount_17x_higher_than_normal"
+      },
+      "time_anomaly": {
+        "score": 0.70,
+        "details": "3:15 AM vs normal 9AM-6PM",
+        "factor": "off_hours_transaction"
+      },
+      "location_anomaly": {
+        "score": 0.60,
+        "details": "Rural Montana vs normal NYC area",
+        "factor": "geographic_deviation_800_miles"
+      },
+      "merchant_anomaly": {
+        "score": 0.40,
+        "details": "Gas station vs normal grocery/retail",
+        "factor": "merchant_category_deviation"
+      }
+    },
+    "behavioral_baseline": {
+      "avg_transaction": 47.23,
+      "typical_hours": "9AM-6PM",
+      "usual_location": "NYC_metropolitan",
+      "common_merchants": ["grocery", "retail", "dining"]
+    },
+    "recommendation": {
+      "action": "hold_for_review",
+      "urgency": "immediate",
+      "additional_verification": ["SMS_confirmation", "call_verification"],
+      "investigation_priority": "high"
+    }
+  }
+}
+```
+
+OBFUSCATED TRANSACTION DATA: [Insert transaction records]
+```
+
+#### Anti-Money Laundering (AML) Pattern Detection
+```
+You are an AML compliance analyst examining obfuscated financial transaction patterns for suspicious activity reporting.
+
+COMPLIANCE CONTEXT: All customer PII obfuscated for privacy. Focus on transaction patterns that may indicate money laundering, terrorist financing, or other illicit activities.
+
+AML RED FLAGS TO DETECT:
+- Structuring: Multiple transactions just under reporting thresholds
+- Rapid movement: Quick in-and-out patterns across accounts
+- Round numbers: Unusual patterns of round-number transactions
+- Layering: Complex series of transfers to obscure origin
+- Geographic risks: Transactions involving high-risk jurisdictions
+- Cash patterns: Unusual cash deposit/withdrawal sequences
+
+PATTERN ANALYSIS OBJECTIVES:
+1. Identify potentially suspicious transaction sequences
+2. Calculate risk scores based on AML indicators
+3. Flag patterns requiring Suspicious Activity Reports (SARs)
+4. Assess customer risk profiles
+
+For suspicious pattern detection:
+```json
+{
+  "aml_analysis": {
+    "customer_profile": "[CUSTOMER-XXX]",
+    "analysis_period": "30_days",
+    "suspicious_activity_score": 0.78,
+    "risk_classification": "high",
+    "red_flags_detected": [
+      {
+        "flag_type": "structuring",
+        "description": "15 deposits of $9,800-$9,950 over 20 days",
+        "risk_score": 0.92,
+        "regulatory_threshold": "just_under_10k_reporting"
+      },
+      {
+        "flag_type": "velocity",
+        "description": "Rapid transfers totaling $487k in 3 days",
+        "risk_score": 0.85,
+        "pattern": "in_out_same_day"
+      }
+    ],
+    "transaction_patterns": {
+      "total_volume": 487342.67,
+      "transaction_count": 47,
+      "avg_transaction": 10368.99,
+      "cash_intensity": 0.73,
+      "geographic_spread": ["domestic", "offshore_banking_center"]
+    },
+    "recommendation": {
+      "sar_filing": "recommended",
+      "priority": "high",
+      "investigation_needed": true,
+      "enhanced_monitoring": "implement_immediately",
+      "compliance_review": "required_within_48_hours"
+    }
+  }
+}
+```
+
+TRANSACTION PATTERN DATA: [Insert obfuscated records]
+```
+
+### Prompt Engineering Best Practices
+
+#### 1. **Privacy-First Language**
+Always remind the LLM about data obfuscation:
+```
+"All PII has been obfuscated with tokens like [EMAIL-XXX]. Focus on patterns, not identity."
+"Customer identifiers are anonymized. Analyze behavior without attempting identification."
+"PHI removed per HIPAA Safe Harbor. Focus on clinical patterns only."
+```
+
+#### 2. **Structured Output Requirements**
+Specify exact JSON formats:
+```json
+{
+  "required_fields": "always_specify",
+  "confidence_scores": "include_for_ml_decisions", 
+  "reasoning": "provide_for_explainability",
+  "recommendations": "actionable_next_steps"
+}
+```
+
+#### 3. **Domain-Specific Context**
+Include relevant business/clinical context:
+- **Churn**: Industry benchmarks, customer lifecycle stages
+- **Medical**: Clinical guidelines, population health standards  
+- **Fraud**: Regulatory requirements, risk tolerance levels
+
+#### 4. **Quality Control Instructions**
+```
+"Flag any patterns that seem unreliable due to small sample sizes."
+"Note confidence intervals for statistical estimates."
+"Distinguish between correlation and causation in findings."
+"Identify potential biases in the data or analysis."
+```
+
+#### 5. **Error Handling**
+```
+"If data quality is insufficient for reliable analysis, state limitations clearly."
+"When confidence is low (<0.7), recommend additional data collection."
+"Flag any results that conflict with domain knowledge."
+```
+
+These prompt templates can be customized for specific industries, compliance requirements, and business objectives while maintaining DataCloak's privacy-preserving approach.
+
 ## Test Scenarios
 
 The CLI includes three pre-built test scenarios that demonstrate these capabilities:
