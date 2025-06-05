@@ -1,0 +1,19 @@
+name: medical-records
+description: Obfuscate patient data for research
+data_file: patient_records.csv
+expected_patterns:
+- SSN
+- Phone
+- Email
+llm_context: Identify health trends and patterns in anonymized patient data without exposing PII.
+expected_results:
+  min_records: 45
+  max_records: 55
+  patterns_detected:
+  - SSN
+  - Phone
+  churn_analysis: null
+  fraud_analysis: null
+  medical_analysis:
+    expected_patient_count: 50
+    expected_findings: 3

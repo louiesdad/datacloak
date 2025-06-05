@@ -1,0 +1,21 @@
+name: customer-churn
+description: Detect churn risk in customer data
+data_file: customer_data.csv
+expected_patterns:
+- Email
+- Phone
+- SSN
+llm_context: Analyze customer behavior for churn risk based on support tickets, payment history, and usage patterns.
+expected_results:
+  min_records: 95
+  max_records: 105
+  patterns_detected:
+  - Email
+  - Phone
+  churn_analysis:
+    expected_high_risk_count: 5
+    expected_avg_churn_range:
+    - 0.3
+    - 0.7
+  fraud_analysis: null
+  medical_analysis: null

@@ -1,0 +1,19 @@
+name: financial-fraud
+description: Detect fraudulent transactions
+data_file: transactions.csv
+expected_patterns:
+- CreditCard
+- SSN
+- Phone
+llm_context: Analyze transaction patterns for fraud indicators while protecting customer PII.
+expected_results:
+  min_records: 195
+  max_records: 205
+  patterns_detected:
+  - CreditCard
+  - Phone
+  churn_analysis: null
+  fraud_analysis:
+    expected_fraud_alerts: 2
+    expected_high_risk_transactions: 5
+  medical_analysis: null

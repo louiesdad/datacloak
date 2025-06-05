@@ -1,0 +1,57 @@
+[package]
+name = "datacloak-cli"
+version = "0.1.0"
+edition = "2021"
+authors = ["DataCloak Team"]
+description = "CLI for DataCloak functional testing and analysis"
+
+[[bin]]
+name = "datacloak-cli"
+path = "src/main.rs"
+
+[dependencies]
+# Core DataCloak library
+datacloak-core = { path = "../datacloak-core" }
+
+# CLI framework
+clap = { version = "4.2", features = ["derive"] }
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+# CSV processing
+csv = "1.3"
+
+# HTTP server for mock LLM
+warp = "0.3"
+hyper = "0.14"
+
+# Utilities
+anyhow = "1.0"
+thiserror = "1.0"
+uuid = { version = "1.6", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+regex = "1.10"
+rand = "0.8"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter", "json"] }
+
+# File system utilities
+tempfile = "3.8"
+walkdir = "2.4"
+futures = "0.3"
+reqwest = { version = "0.11", features = ["json"] }
+
+# Rate limiting for mock
+governor = "0.6"
+
+[dev-dependencies]
+tempfile = "3.8"
+mockito = "1"
