@@ -40,3 +40,11 @@ harness = false
 [[bench]]
 name = "secure_regex_bench"
 harness = false
+
+[[bench]]
+name = "streaming_benchmark"
+harness = false
+
+[[bench]]
+name = "quick_streaming_benchmark"
+harness = false

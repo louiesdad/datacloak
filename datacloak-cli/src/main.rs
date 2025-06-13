@@ -22,8 +22,8 @@ async fn main() -> Result<()> {
         Commands::Detect { file, rows, output } => {
             cli::detect_command(file, rows, output).await
         }
-        Commands::Obfuscate { file, patterns, rows, output } => {
-            cli::obfuscate_command(file, patterns, rows, output).await
+        Commands::Obfuscate { file, patterns, rows, output, dry_run } => {
+            cli::obfuscate_command(file, patterns, rows, output, dry_run).await
         }
         Commands::Analyze { file, rows, patterns, api_key, dry_run, output } => {
             cli::analyze_command(file, rows, patterns, api_key, dry_run, output).await

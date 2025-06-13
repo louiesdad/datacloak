@@ -8,13 +8,12 @@ mod logger;
 
 use clap::Parser;
 use errors::AppError;
-use obfuscator::Obfuscator;
+use obfuscator::{Obfuscator, StreamConfig};
 use config::load_config;
 use llm_client::LlmClient;
 use deobfuscator::deobfuscate_text;
 use metrics::Metrics;
 use prometheus::Registry;
-use tokio::io::BufReader;
 use std::path::Path;
 use tracing::{info, error};
 
@@ -38,6 +37,9 @@ struct Cli {
 
     #[arg(long)]
     debug_obfuscated_path: Option<String>,
+
+    #[arg(long, default_value = "262144")]
+    chunk_size: usize,
 }
 
 #[tokio::main]
@@ -64,12 +66,12 @@ async fn main() -> Result<(), AppError> {
         obf_timer.observe_duration();
         text
     } else if let Some(path_str) = cli.document_path.clone() {
-        info!("Reading document from {}", path_str);
+        info!("Reading document from {} with chunk size: {}", path_str, cli.chunk_size);
         let file = tokio::fs::File::open(Path::new(&path_str)).await?;
-        let reader = BufReader::new(file);
         let mut buf = Vec::new();
+        let stream_config = StreamConfig { chunk_size: cli.chunk_size };
         let obf_timer = metrics.obfuscation_duration.start_timer();
-        obfuscator.obfuscate_stream(reader, &mut buf).await?;
+        obfuscator.stream_file(file, &mut buf, &stream_config).await?;
         obf_timer.observe_duration();
         String::from_utf8(buf).map_err(|e| AppError::Other(e.to_string()))?
     } else {

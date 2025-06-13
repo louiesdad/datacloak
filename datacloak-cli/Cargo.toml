@@ -5,6 +5,10 @@ edition = "2021"
 authors = ["DataCloak Team"]
 description = "CLI for DataCloak functional testing and analysis"
 
+[lib]
+name = "datacloak_cli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "datacloak-cli"
 path = "src/main.rs"

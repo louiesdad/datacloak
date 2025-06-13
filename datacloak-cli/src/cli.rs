@@ -37,6 +37,8 @@ pub enum Commands {
         rows: usize,
         #[arg(short, long)]
         output: Option<PathBuf>,
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Full pipeline: detect → obfuscate → LLM analysis
     Analyze {
@@ -145,8 +147,15 @@ pub async fn obfuscate_command(
     patterns: Option<PathBuf>,
     rows: usize,
     output: Option<PathBuf>,
+    dry_run: bool,
 ) -> Result<()> {
-    info!("Obfuscating data in {} (first {} rows)", file.display(), rows);
+    if dry_run {
+        info!("Obfuscating data in {} (first {} rows) - DRY RUN", file.display(), rows);
+        println!("🔍 DRY RUN MODE - No output file will be created");
+        println!("================================================");
+    } else {
+        info!("Obfuscating data in {} (first {} rows)", file.display(), rows);
+    }
     
     // Load patterns
     let patterns = if let Some(pattern_file) = patterns {
@@ -162,7 +171,7 @@ pub async fn obfuscate_command(
     // Create DataCloak instance
     let config = DataCloakConfig::default();
     let datacloak = DataCloak::new(config);
-    datacloak.set_patterns(patterns)?;
+    datacloak.set_patterns(patterns.clone())?;
     
     // Create data source
     let data_source = DataSource::csv(file.to_path_buf());
@@ -170,27 +179,64 @@ pub async fn obfuscate_command(
     // Process data
     let mut stream = data_source.stream(1000).await?;
     let mut all_obfuscated = Vec::new();
+    let mut total_records = 0;
+    let mut row_count = 0;
     
     use futures::StreamExt;
     while let Some(batch) = stream.next().await {
         let batch = batch?;
+        total_records += batch.len();
+        
         let obfuscated_batch = datacloak.obfuscate_batch(batch).await?;
         all_obfuscated.extend(obfuscated_batch);
+        
+        row_count += all_obfuscated.len();
+        if row_count >= rows {
+            all_obfuscated.truncate(rows);
+            break;
+        }
     }
     
-    // Display results
-    println!("🔒 Obfuscation Results");
-    println!("======================");
+    // Get obfuscation stats
     let stats = datacloak.obfuscator_stats();
-    println!("Processed {} records", all_obfuscated.len());
-    println!("Generated {} obfuscation tokens", stats.total_tokens);
-    println!("Loaded {} patterns", stats.patterns_loaded);
     
-    // Save output
-    if let Some(output_path) = output {
-        let json_output = serde_json::to_string_pretty(&all_obfuscated)?;
-        tokio::fs::write(&output_path, json_output).await?;
-        info!("Obfuscated data saved to {}", output_path.display());
+    if dry_run {
+        // Create summary JSON for dry run
+        let summary = serde_json::json!({
+            "mode": "dry-run",
+            "input_file": file.display().to_string(),
+            "records_processed": all_obfuscated.len(),
+            "patterns_loaded": stats.patterns_loaded,
+            "tokens_generated": stats.total_tokens,
+            "sample_obfuscation": if !all_obfuscated.is_empty() {
+                serde_json::to_value(&all_obfuscated[0])?
+            } else {
+                serde_json::Value::Null
+            },
+            "pattern_types": patterns.iter()
+                .map(|p| format!("{:?}", p.pattern_type))
+                .collect::<Vec<_>>(),
+            "output_would_be_written_to": output.as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "stdout".to_string()),
+        });
+        
+        // Print summary JSON
+        println!("{}", serde_json::to_string_pretty(&summary)?);
+    } else {
+        // Display results
+        println!("🔒 Obfuscation Results");
+        println!("======================");
+        println!("Processed {} records", all_obfuscated.len());
+        println!("Generated {} obfuscation tokens", stats.total_tokens);
+        println!("Loaded {} patterns", stats.patterns_loaded);
+        
+        // Save output
+        if let Some(output_path) = output {
+            let json_output = serde_json::to_string_pretty(&all_obfuscated)?;
+            tokio::fs::write(&output_path, json_output).await?;
+            info!("Obfuscated data saved to {}", output_path.display());
+        }
     }
     
     Ok(())
