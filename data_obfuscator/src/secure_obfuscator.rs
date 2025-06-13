@@ -6,7 +6,8 @@ use thiserror::Error;
 use validator::ValidateEmail;
 use once_cell::sync::Lazy;
 
-// Pre-compiled regexes for performance - use atomic groups to prevent backtracking
+// Unused - kept for potential future optimization
+#[allow(dead_code)]
 static EMAIL_CANDIDATE_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\b[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}\b").unwrap()
 });
