@@ -6,5 +6,5 @@ fn counter_increments() {
     let registry = Registry::new();
     let metrics = Metrics::new(&registry);
     metrics.request_count.inc();
-    assert_eq!(metrics.request_count.get(), 1);
+    assert_eq!(metrics.request_count.get(), 1.0);
 }

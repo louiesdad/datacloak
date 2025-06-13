@@ -7,6 +7,7 @@ pub struct Metrics {
     pub request_duration: Histogram,
     pub obfuscation_duration: Histogram,
     pub llm_duration: Histogram,
+    #[allow(dead_code)]
     pub error_count: Counter,
 }
 

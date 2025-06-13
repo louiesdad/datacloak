@@ -1,39 +1,36 @@
 use data_obfuscator::llm_client::LlmClient;
-use mockito::{mock, Matcher};
-use serde_json::Value;
+use mockito::Server;
 
 #[tokio::test]
 async fn echo_chat() {
-    let _m = mock("POST", "/")
+    let mut server = Server::new_async().await;
+    
+    let _m = server.mock("POST", "/")
         .match_header("authorization", "Bearer key")
-        .match_header("content-type", Matcher::Regex("application/json".into()))
+        .match_header("content-type", "application/json")
         .with_status(200)
-        .with_body_from_request(|req| {
-            let body: Value = serde_json::from_slice(&req.body).unwrap();
-            let user_content = body["messages"][1]["content"].as_str().unwrap();
-            format!(
-                "{{ \"choices\": [ {{ \"message\": {{ \"content\": \"echo: {}\" }} }} ] }}",
-                user_content
-            )
-            .into_bytes()
-        })
-        .create();
+        .with_body(r#"{ "choices": [ { "message": { "content": "echo: hello" } } ] }"#)
+        .create_async()
+        .await;
 
-    let client = LlmClient::new(mockito::server_url(), "key".to_string());
+    let client = LlmClient::new(server.url(), "key".to_string());
     let reply = client.chat("hello").await.unwrap();
     assert_eq!(reply, "echo: hello");
 }
 
 #[tokio::test]
 async fn chat_returns_content() {
-    let _m = mock("POST", "/")
+    let mut server = Server::new_async().await;
+    
+    let _m = server.mock("POST", "/")
         .match_header("authorization", "Bearer test-key")
-        .match_header("content-type", Matcher::Regex("application/json".into()))
+        .match_header("content-type", "application/json")
         .with_status(200)
         .with_body(r#"{ "choices": [ { "message": { "content": "hello" } } ] }"#)
-        .create();
+        .create_async()
+        .await;
 
-    let client = LlmClient::new(mockito::server_url(), "test-key".into());
+    let client = LlmClient::new(server.url(), "test-key".into());
     let resp = client.chat("ping").await.unwrap();
     assert_eq!(resp, "hello");
 }

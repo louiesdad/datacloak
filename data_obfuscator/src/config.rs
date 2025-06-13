@@ -49,6 +49,12 @@ pub fn load_config(
     // Build layered config for endpoint/key, using env and CLI overrides
     let mut builder = config_rs::Config::builder();
 
+    // Set defaults
+    builder = builder
+        .set_default("llm_endpoint", "https://api.openai.com/v1/chat/completions")?
+        .set_default("api_key", "")?;
+
+    // Environment variables override defaults
     if let Ok(endpoint) = std::env::var("LLM_ENDPOINT") {
         builder = builder.set_override("llm_endpoint", endpoint)?;
     }
@@ -56,13 +62,15 @@ pub fn load_config(
         builder = builder.set_override("api_key", key)?;
     }
 
-    // CLI flags take precedence
-    builder = builder
-        .set_override("llm_endpoint", llm_endpoint.to_string())?
-        .set_override(
-            "api_key",
-            api_key.clone().unwrap_or_else(|| std::env::var("OPENAI_API_KEY").unwrap_or_default()),
-        )?;
+    // CLI flags take precedence (only if non-empty)
+    if !llm_endpoint.is_empty() {
+        builder = builder.set_override("llm_endpoint", llm_endpoint.to_string())?;
+    }
+    if let Some(ref key) = api_key {
+        if !key.is_empty() {
+            builder = builder.set_override("api_key", key.clone())?;
+        }
+    }
 
     let cfg = builder.build()?;
 

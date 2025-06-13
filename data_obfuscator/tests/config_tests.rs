@@ -1,4 +1,4 @@
-use data_obfuscator::config::{load_config, Rule};
+use data_obfuscator::config::load_config;
 
 #[test]
 fn load_default_rules() {

@@ -63,7 +63,7 @@ impl Obfuscator {
 
     pub async fn obfuscate_stream<R, W>(
         &mut self,
-        mut reader: R,
+        reader: R,
         mut writer: W,
     ) -> Result<(), ObfuscationError>
     where
