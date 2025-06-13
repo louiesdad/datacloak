@@ -1,13 +1,13 @@
 //! High-performance obfuscation engine
 
-use crate::{Pattern, PatternType, Result, DataCloakError, RecordBatch};
+use crate::{DataCloakError, Pattern, PatternType, RecordBatch, Result};
 use dashmap::DashMap;
-use regex::Regex;
-use serde::{Serialize, Deserialize};
-use serde_json::Value;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use rayon::prelude::*;
+use regex::Regex;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 /// Obfuscated batch of records
 pub type ObfuscatedBatch = Vec<ObfuscatedRecord>;
@@ -52,44 +52,47 @@ impl Obfuscator {
             reverse_map: Arc::new(DashMap::new()),
         }
     }
-    
+
     /// Set patterns for obfuscation
     pub fn set_patterns(&self, patterns: Vec<Pattern>) -> Result<()> {
         self.patterns.clear();
-        
+
         for pattern in patterns {
-            let regex = Regex::new(&pattern.regex)
-                .map_err(|e| DataCloakError::InvalidPattern(format!("{}: {}", pattern.pattern_type, e)))?;
-            
+            let regex = Regex::new(&pattern.regex).map_err(|e| {
+                DataCloakError::InvalidPattern(format!("{}: {}", pattern.pattern_type, e))
+            })?;
+
             let compiled = CompiledPattern {
                 pattern_type: pattern.pattern_type,
                 regex,
                 priority: pattern.priority,
             };
-            
+
             self.patterns.insert(pattern.pattern_type, compiled);
         }
-        
+
         Ok(())
     }
-    
+
     /// Obfuscate a batch of records in parallel
     pub fn obfuscate_batch(&self, batch: &RecordBatch) -> Result<ObfuscatedBatch> {
         // Sort patterns by priority for consistent application order
-        let mut sorted_patterns: Vec<_> = self.patterns.iter()
+        let mut sorted_patterns: Vec<_> = self
+            .patterns
+            .iter()
             .map(|entry| (*entry.key(), entry.value().priority))
             .collect();
         sorted_patterns.sort_by(|a, b| b.1.cmp(&a.1));
-        
+
         // Process records in parallel
         let obfuscated: Vec<_> = batch
             .par_iter()
             .map(|record| self.obfuscate_record(record, &sorted_patterns))
             .collect::<Result<Vec<_>>>()?;
-        
+
         Ok(obfuscated)
     }
-    
+
     /// Obfuscate a single record
     fn obfuscate_record(
         &self,
@@ -98,21 +101,22 @@ impl Obfuscator {
     ) -> Result<ObfuscatedRecord> {
         let mut tokens_used = Vec::new();
         let obfuscated_data = self.obfuscate_value(record, sorted_patterns, &mut tokens_used)?;
-        
+
         // Extract ID if present
-        let id = record.get("id")
+        let id = record
+            .get("id")
             .or_else(|| record.get("customer_id"))
             .or_else(|| record.get("_id"))
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
-        
+
         Ok(ObfuscatedRecord {
             id,
             data: obfuscated_data,
             tokens_used,
         })
     }
-    
+
     /// Recursively obfuscate a JSON value
     fn obfuscate_value(
         &self,
@@ -144,7 +148,7 @@ impl Obfuscator {
             _ => Ok(value.clone()),
         }
     }
-    
+
     /// Obfuscate a string using all patterns
     fn obfuscate_string(
         &self,
@@ -153,36 +157,38 @@ impl Obfuscator {
         tokens_used: &mut Vec<String>,
     ) -> String {
         let mut result = input.to_string();
-        
+
         for (pattern_type, _) in sorted_patterns {
             if let Some(pattern) = self.patterns.get(pattern_type) {
-                let temp_result = pattern.regex.replace_all(&result, |caps: &regex::Captures| {
-                    let matched = caps.get(0).unwrap().as_str();
-                    
-                    // Check if already tokenized
-                    if let Some(existing_token) = self.reverse_map.get(matched) {
-                        return existing_token.value().clone();
-                    }
-                    
-                    // Generate new token
-                    let counter = self.token_counter.fetch_add(1, Ordering::SeqCst);
-                    let token = format!("[{}-{}]", pattern_type, counter);
-                    
-                    // Store mappings
-                    self.token_map.insert(token.clone(), matched.to_string());
-                    self.reverse_map.insert(matched.to_string(), token.clone());
-                    tokens_used.push(token.clone());
-                    
-                    token
-                });
-                
+                let temp_result = pattern
+                    .regex
+                    .replace_all(&result, |caps: &regex::Captures| {
+                        let matched = caps.get(0).unwrap().as_str();
+
+                        // Check if already tokenized
+                        if let Some(existing_token) = self.reverse_map.get(matched) {
+                            return existing_token.value().clone();
+                        }
+
+                        // Generate new token
+                        let counter = self.token_counter.fetch_add(1, Ordering::SeqCst);
+                        let token = format!("[{}-{}]", pattern_type, counter);
+
+                        // Store mappings
+                        self.token_map.insert(token.clone(), matched.to_string());
+                        self.reverse_map.insert(matched.to_string(), token.clone());
+                        tokens_used.push(token.clone());
+
+                        token
+                    });
+
                 result = temp_result.into_owned();
             }
         }
-        
+
         result
     }
-    
+
     /// De-obfuscate predictions from LLM
     pub fn deobfuscate_predictions(
         &self,
@@ -202,7 +208,7 @@ impl Obfuscator {
             })
             .collect()
     }
-    
+
     /// De-obfuscate a JSON value
     fn deobfuscate_value(&self, value: &Value) -> Result<Value> {
         match value {
@@ -225,14 +231,14 @@ impl Obfuscator {
             _ => Ok(value.clone()),
         }
     }
-    
+
     /// De-obfuscate a string
     fn deobfuscate_string(&self, input: &str) -> String {
         let mut result = input.to_string();
-        
+
         // Find all tokens in the string
         let token_pattern = Regex::new(r"\[[A-Z_]+-\d+\]").unwrap();
-        
+
         for cap in token_pattern.captures_iter(input) {
             if let Some(token) = cap.get(0) {
                 if let Some(original) = self.token_map.get(token.as_str()) {
@@ -240,10 +246,10 @@ impl Obfuscator {
                 }
             }
         }
-        
+
         result
     }
-    
+
     /// Get statistics about the obfuscation cache
     pub fn stats(&self) -> ObfuscatorStats {
         ObfuscatorStats {
@@ -252,7 +258,7 @@ impl Obfuscator {
             next_token_id: self.token_counter.load(Ordering::SeqCst),
         }
     }
-    
+
     /// Clear all mappings (use with caution!)
     pub fn clear_mappings(&self) {
         self.token_map.clear();
@@ -296,26 +302,36 @@ pub use self::ChurnPrediction as ChurnPredictionExport;
 mod tests {
     use super::*;
     use crate::patterns::Pattern;
-    
+
     #[test]
     fn test_obfuscation() {
         let obfuscator = Obfuscator::new();
-        
+
         let patterns = vec![
-            Pattern::new(PatternType::Email, r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b".to_string()),
-            Pattern::new(PatternType::Phone, r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b".to_string()),
+            Pattern::new(
+                PatternType::Email,
+                r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b".to_string(),
+            ),
+            Pattern::new(
+                PatternType::Phone,
+                r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b".to_string(),
+            ),
         ];
-        
+
         obfuscator.set_patterns(patterns).unwrap();
-        
+
         let input = "Contact john.doe@example.com or call 555-123-4567";
         let mut tokens = Vec::new();
-        let obfuscated = obfuscator.obfuscate_string(input, &[(PatternType::Email, 100), (PatternType::Phone, 90)], &mut tokens);
-        
+        let obfuscated = obfuscator.obfuscate_string(
+            input,
+            &[(PatternType::Email, 100), (PatternType::Phone, 90)],
+            &mut tokens,
+        );
+
         assert!(obfuscated.contains("[EMAIL-0]"));
         assert!(obfuscated.contains("[PHONE-1]"));
         assert_eq!(tokens.len(), 2);
-        
+
         // Test de-obfuscation
         let deobfuscated = obfuscator.deobfuscate_string(&obfuscated);
         assert_eq!(deobfuscated, input);

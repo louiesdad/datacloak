@@ -292,7 +292,7 @@ DataCloak provides privacy-preserving data analysis through a three-stage pipeli
 
 **Privacy-Preserving Analytics:**
 - Enables safe cloud AI analysis of sensitive datasets
-- Maintains HIPAA/GDPR compliance during processing
+- Designed with privacy compliance in mind
 - Allows collaboration on sensitive data without exposure
 - Supports complex queries on obfuscated data
 
@@ -360,7 +360,7 @@ account_age: 24             # Account maturity factor
 ```
 
 **Real-World Effectiveness:**
-- ✅ **HIPAA Compliance**: Removes all 18 HIPAA identifiers
+- ✅ **Privacy First**: Removes sensitive identifiers
 - ✅ **Clinical Insights**: Preserves medical codes, dates, outcomes
 - ✅ **Population Analysis**: Enables trend analysis across patient cohorts
 - ⚠️ **Medical Accuracy**: Requires domain-specific prompting and validation
@@ -646,13 +646,13 @@ CUSTOMER DATA: [Insert obfuscated records]
 
 ### Medical Records Analysis Prompts
 
-#### HIPAA-Compliant Population Health Prompt
+#### Privacy-Focused Population Health Prompt
 ```
 You are a public health epidemiologist analyzing de-identified patient data for population health insights.
 
 PRIVACY COMPLIANCE:
 - All PHI has been obfuscated ([NAME-XXX], [SSN-XXX], [MRN-XXX])
-- Analysis must comply with HIPAA Safe Harbor method
+- Analysis must maintain patient privacy and confidentiality
 - Focus on aggregate trends, not individual patient identification
 - Medical codes and clinical data are preserved for analysis
 
@@ -911,7 +911,7 @@ Always remind the LLM about data obfuscation:
 ```
 "All PII has been obfuscated with tokens like [EMAIL-XXX]. Focus on patterns, not identity."
 "Customer identifiers are anonymized. Analyze behavior without attempting identification."
-"PHI removed per HIPAA Safe Harbor. Focus on clinical patterns only."
+"PHI removed for privacy protection. Focus on clinical patterns only."
 ```
 
 #### 2. **Structured Output Requirements**

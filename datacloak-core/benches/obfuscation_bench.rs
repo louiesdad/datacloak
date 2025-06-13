@@ -1,6 +1,6 @@
 //! Performance benchmarks for DataCloak obfuscation
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use datacloak_core::{Obfuscator, Pattern, PatternType};
 use serde_json::json;
 
@@ -23,7 +23,7 @@ fn create_test_data(size: usize) -> Vec<serde_json::Value> {
 
 fn bench_obfuscation(c: &mut Criterion) {
     let obfuscator = Obfuscator::new();
-    
+
     // Set up patterns
     let patterns = vec![
         Pattern::new(PatternType::Email, r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b".to_string()),
@@ -32,15 +32,15 @@ fn bench_obfuscation(c: &mut Criterion) {
         Pattern::new(PatternType::CreditCard, r"\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b".to_string()),
         Pattern::new(PatternType::IPAddress, r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b".to_string()),
     ];
-    
+
     obfuscator.set_patterns(patterns).unwrap();
-    
+
     let mut group = c.benchmark_group("obfuscation");
-    
+
     // Benchmark different batch sizes
     for size in [10, 100, 1000, 10000].iter() {
         let data = create_test_data(*size);
-        
+
         group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, _| {
             b.iter(|| {
                 let result = obfuscator.obfuscate_batch(black_box(&data)).unwrap();
@@ -48,16 +48,16 @@ fn bench_obfuscation(c: &mut Criterion) {
             });
         });
     }
-    
+
     group.finish();
 }
 
 fn bench_pattern_matching(c: &mut Criterion) {
     use regex::Regex;
-    
+
     let email_pattern = Regex::new(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b").unwrap();
     let text = "Contact us at support@example.com, sales@example.com, or info@example.com for more information.";
-    
+
     c.bench_function("regex_find_all", |b| {
         b.iter(|| {
             let matches: Vec<_> = email_pattern.find_iter(black_box(text)).collect();
@@ -68,11 +68,12 @@ fn bench_pattern_matching(c: &mut Criterion) {
 
 fn bench_json_processing(c: &mut Criterion) {
     let obfuscator = Obfuscator::new();
-    let patterns = vec![
-        Pattern::new(PatternType::Email, r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b".to_string()),
-    ];
+    let patterns = vec![Pattern::new(
+        PatternType::Email,
+        r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b".to_string(),
+    )];
     obfuscator.set_patterns(patterns).unwrap();
-    
+
     let nested_json = json!({
         "user": {
             "profile": {
@@ -84,7 +85,7 @@ fn bench_json_processing(c: &mut Criterion) {
             }
         }
     });
-    
+
     c.bench_function("nested_json_obfuscation", |b| {
         b.iter(|| {
             let batch = vec![nested_json.clone()];
@@ -96,9 +97,9 @@ fn bench_json_processing(c: &mut Criterion) {
 
 fn bench_cache_operations(c: &mut Criterion) {
     use datacloak_core::ObfuscationCache;
-    
+
     let cache = ObfuscationCache::new();
-    
+
     // Pre-populate cache
     for i in 0..1000 {
         cache.store(
@@ -107,7 +108,7 @@ fn bench_cache_operations(c: &mut Criterion) {
             "EMAIL".to_string(),
         );
     }
-    
+
     c.bench_function("cache_lookup", |b| {
         b.iter(|| {
             let token = black_box("TOKEN-500");
@@ -115,7 +116,7 @@ fn bench_cache_operations(c: &mut Criterion) {
             black_box(result);
         });
     });
-    
+
     c.bench_function("cache_store", |b| {
         let mut counter = 1000;
         b.iter(|| {

@@ -55,3 +55,8 @@ governor = "0.6"
 [dev-dependencies]
 tempfile = "3.8"
 mockito = "1"
+cargo-husky = "1"
+
+# Cargo-husky configuration for pre-commit hooks
+[package.metadata.husky]
+hooks-path = ".husky"

@@ -1,6 +1,7 @@
 //! DataCloak: High-performance data obfuscation library
 
 pub mod cache;
+pub mod crypto;
 pub mod data_source;
 pub mod detector;
 pub mod errors;
@@ -18,12 +19,14 @@ pub use data_source::{DataSource, DataSourceConfig, RecordBatch};
 pub use detector::{DetectionResult, PatternDetector};
 pub use errors::{DataCloakError, Result};
 pub use llm_batch::{BatchLlmClient, LlmBatchConfig};
-pub use obfuscator::{Obfuscator, ChurnPredictionExport as ChurnPrediction, ObfuscatedBatch, ObfuscatedRecord};
+pub use obfuscator::{
+    ChurnPredictionExport as ChurnPrediction, ObfuscatedBatch, ObfuscatedRecord, Obfuscator,
+};
 pub use patterns::{Pattern, PatternSet, PatternType};
-pub use streaming::{StreamProcessor, StreamConfig};
+pub use streaming::{StreamConfig, StreamProcessor};
 
-use std::sync::Arc;
 use futures::StreamExt;
+use std::sync::Arc;
 use tracing::info;
 
 /// Main configuration for DataCloak
@@ -71,7 +74,7 @@ impl DataCloak {
             config.stream_config.clone(),
         ));
         let cache = Arc::new(ObfuscationCache::new());
-        
+
         Self {
             detector,
             obfuscator,
@@ -81,27 +84,27 @@ impl DataCloak {
             config,
         }
     }
-    
+
     /// Detect PII patterns in a data source
     pub async fn detect_patterns(&self, source: DataSource) -> Result<DetectionResult> {
         self.detector.detect_patterns(source).await
     }
-    
+
     /// Set patterns for obfuscation
     pub fn set_patterns(&self, patterns: Vec<Pattern>) -> Result<()> {
         self.obfuscator.set_patterns(patterns)
     }
-    
+
     /// Get obfuscator stats
     pub fn obfuscator_stats(&self) -> crate::obfuscator::ObfuscatorStats {
         self.obfuscator.stats()
     }
-    
+
     /// Obfuscate a batch of records
     pub async fn obfuscate_batch(&self, batch: RecordBatch) -> Result<ObfuscatedBatch> {
         self.obfuscator.obfuscate_batch(&batch)
     }
-    
+
     /// Analyze churn probability for customers in a data source
     pub async fn analyze_churn(
         &self,
@@ -110,26 +113,26 @@ impl DataCloak {
         batch_size: Option<usize>,
     ) -> Result<ChurnAnalysisResult> {
         let batch_size = batch_size.unwrap_or(self.config.batch_size);
-        
+
         // Set patterns in obfuscator
         self.obfuscator.set_patterns(patterns)?;
-        
+
         // Create data stream
         let data_stream = source.stream(batch_size).await?;
-        
+
         // Create processing pipeline
         let obfuscated_stream = self.stream_processor.create_pipeline(data_stream);
-        
+
         // Process through LLM for churn predictions
         let prediction_stream = self.llm_client.clone().stream(obfuscated_stream);
-        
+
         // Collect results
         let mut all_predictions = Vec::new();
         let mut total_records = 0;
         let mut errors = Vec::new();
-        
+
         tokio::pin!(prediction_stream);
-        
+
         while let Some(result) = prediction_stream.next().await {
             match result {
                 Ok(predictions) => {
@@ -144,28 +147,33 @@ impl DataCloak {
                 }
             }
         }
-        
+
         // De-obfuscate predictions
         let final_predictions = self.obfuscator.deobfuscate_predictions(all_predictions)?;
-        
+
         // Calculate statistics
         let avg_churn_probability = if !final_predictions.is_empty() {
-            final_predictions.iter()
+            final_predictions
+                .iter()
                 .map(|p| p.churn_probability)
-                .sum::<f32>() / final_predictions.len() as f32
+                .sum::<f32>()
+                / final_predictions.len() as f32
         } else {
             0.0
         };
-        
-        let high_risk_count = final_predictions.iter()
+
+        let high_risk_count = final_predictions
+            .iter()
             .filter(|p| p.churn_probability > 0.7)
             .count();
-        
+
         info!(
             "Churn analysis complete: {} records processed, avg churn: {:.2}%, {} high risk",
-            total_records, avg_churn_probability * 100.0, high_risk_count
+            total_records,
+            avg_churn_probability * 100.0,
+            high_risk_count
         );
-        
+
         Ok(ChurnAnalysisResult {
             predictions: final_predictions,
             total_records,
@@ -174,17 +182,17 @@ impl DataCloak {
             errors,
         })
     }
-    
+
     /// Get cache statistics
     pub fn cache_stats(&self) -> cache::CacheStats {
         self.cache.stats()
     }
-    
+
     /// Save cache to persistent storage
     pub async fn save_cache(&self) -> Result<()> {
         self.cache.save().await
     }
-    
+
     /// Load cache from persistent storage
     pub async fn load_cache(&self) -> Result<()> {
         self.cache.load().await
