@@ -72,6 +72,9 @@ Obfuscate data while preserving structure for analysis.
 
 # Process larger dataset
 ./target/release/datacloak-cli obfuscate -f large_dataset.csv -r 10000 -o results.json
+
+# Dry-run mode - preview without creating files
+./target/release/datacloak-cli obfuscate -f customers.csv --dry-run
 ```
 
 **Example Output:**
@@ -81,6 +84,26 @@ Obfuscate data while preserving structure for analysis.
 Processed 100 records
 Generated 95 obfuscation tokens
 Loaded 3 patterns
+```
+
+**Dry-Run Output:**
+```
+🔍 DRY RUN MODE - No output file will be created
+================================================
+{
+  "mode": "dry-run",
+  "input_file": "customers.csv",
+  "records_processed": 100,
+  "patterns_loaded": 3,
+  "tokens_generated": 95,
+  "sample_obfuscation": {
+    "data": "John Doe",
+    "id": null,
+    "tokens_used": []
+  },
+  "pattern_types": ["SSN", "Email", "Phone"],
+  "output_would_be_written_to": "stdout"
+}
 ```
 
 ### Full Pipeline Analysis
@@ -250,6 +273,7 @@ All commands support these options:
 - `-p, --patterns <PATH>` - Pattern configuration file
 - `-r, --rows <N>` - Number of rows to process (default: 100)
 - `-o, --output <PATH>` - Output obfuscated data file
+- `--dry-run` - Preview obfuscation without creating files (returns JSON summary)
 
 ### analyze
 - `-f, --file <PATH>` - Input CSV file (required)
@@ -1038,11 +1062,44 @@ scenario:
 # Build the CLI
 cargo build
 
-# Run integration tests
+# Run unit tests
 cargo test
+
+# Run integration tests
+cargo test --test cli_dry_run
 
 # Test specific scenario
 ./target/debug/datacloak-cli test-scenario -s customer-churn
+```
+
+### Exit Code Testing
+
+DataCloak CLI follows standard Unix conventions for exit codes:
+
+```bash
+# Successful operations return exit code 0
+./target/release/datacloak-cli obfuscate --file sample.csv --dry-run
+echo $?  # Should output: 0
+
+# Invalid operations return non-zero exit codes
+./target/release/datacloak-cli obfuscate --file nonexistent.csv
+echo $?  # Should output: non-zero (1 or 2)
+```
+
+**Exit Code Reference:**
+- `0`: Success (dry-run completed, file processed, etc.)
+- `1`: Runtime error (file not found, invalid data, API errors)
+- `2`: Command line argument error (missing flags, invalid options)
+
+**Testing Exit Codes:**
+```bash
+# Test success case
+datacloak-cli obfuscate --file sample.csv --dry-run
+if [ $? -eq 0 ]; then echo "✅ PASS"; else echo "❌ FAIL"; fi
+
+# Test error case  
+datacloak-cli obfuscate --file nonexistent.csv
+if [ $? -ne 0 ]; then echo "✅ PASS"; else echo "❌ FAIL"; fi
 ```
 
 ### Adding New Scenarios
