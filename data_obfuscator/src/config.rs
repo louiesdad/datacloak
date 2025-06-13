@@ -1,19 +1,30 @@
 use std::fs;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use config as config_rs;
 use thiserror::Error;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Rule {
     pub pattern: String,
     pub label: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct AppConfig {
     pub rules: Vec<Rule>,
     pub llm_endpoint: String,
+    #[serde(skip_serializing_if = "String::is_empty", default)]
     pub api_key: String,
+}
+
+impl std::fmt::Debug for AppConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AppConfig")
+            .field("rules", &self.rules)
+            .field("llm_endpoint", &self.llm_endpoint)
+            .field("api_key", &"***")
+            .finish()
+    }
 }
 
 #[derive(Debug, Error)]

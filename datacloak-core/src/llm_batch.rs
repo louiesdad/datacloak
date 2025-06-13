@@ -13,11 +13,12 @@ use tokio::time::sleep;
 use tracing::{debug, warn};
 
 /// Configuration for batch LLM processing
-#[derive(Debug, Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct LlmBatchConfig {
     /// API endpoint URL
     pub endpoint: String,
     /// API key
+    #[serde(skip_serializing_if = "String::is_empty", default)]
     pub api_key: String,
     /// Model to use
     pub model: String,
@@ -26,11 +27,48 @@ pub struct LlmBatchConfig {
     /// Maximum concurrent API calls
     pub max_concurrent_calls: usize,
     /// Request timeout
+    #[serde(with = "duration_serde")]
     pub timeout: Duration,
     /// Rate limit (requests per second)
     pub rate_limit: Option<f32>,
     /// System prompt for churn analysis
     pub system_prompt: String,
+}
+
+// Custom serde implementation for Duration
+mod duration_serde {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::time::Duration;
+
+    pub fn serialize<S>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        duration.as_secs().serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let secs = u64::deserialize(deserializer)?;
+        Ok(Duration::from_secs(secs))
+    }
+}
+
+impl std::fmt::Debug for LlmBatchConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LlmBatchConfig")
+            .field("endpoint", &self.endpoint)
+            .field("api_key", &"***")
+            .field("model", &self.model)
+            .field("batch_size", &self.batch_size)
+            .field("max_concurrent_calls", &self.max_concurrent_calls)
+            .field("timeout", &self.timeout)
+            .field("rate_limit", &self.rate_limit)
+            .field("system_prompt", &self.system_prompt)
+            .finish()
+    }
 }
 
 impl Default for LlmBatchConfig {
@@ -238,7 +276,12 @@ impl BatchLlmClient {
 
     /// Make API call
     async fn make_api_call(&self, request: &ChatRequest) -> Result<ChatResponse> {
-        debug!("Making LLM API call");
+        debug!(
+            endpoint = %self.config.endpoint,
+            model = %self.config.model,
+            api_key = "***",
+            "Making LLM API call"
+        );
 
         let response = self
             .client
@@ -350,5 +393,39 @@ mod tests {
 
         assert_eq!(config.batch_size, 20);
         assert_eq!(config.model, "gpt-4");
+    }
+
+    #[test]
+    fn test_config_debug_masks_api_key() {
+        let config = LlmBatchConfig {
+            api_key: "sk-secret-key-12345".to_string(),
+            ..Default::default()
+        };
+
+        let debug_output = format!("{:?}", config);
+        assert!(debug_output.contains("api_key: \"***\""));
+        assert!(!debug_output.contains("sk-secret-key-12345"));
+    }
+
+    #[test]
+    fn test_config_serialization_skips_empty_api_key() {
+        let config = LlmBatchConfig {
+            api_key: String::new(),
+            ..Default::default()
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(!json.contains("api_key"));
+    }
+
+    #[test]
+    fn test_config_serialization_includes_non_empty_api_key() {
+        let config = LlmBatchConfig {
+            api_key: "test-key".to_string(),
+            ..Default::default()
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("api_key"));
     }
 }
