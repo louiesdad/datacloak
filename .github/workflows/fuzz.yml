@@ -1,0 +1,107 @@
+name: Fuzzing (Nightly)
+
+on:
+  schedule:
+    # Run nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    # Allow manual triggering
+    inputs:
+      duration:
+        description: 'Fuzzing duration in seconds'
+        required: false
+        default: '300'
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  fuzz:
+    name: Fuzzing Tests
+    runs-on: ubuntu-latest
+    # Don't fail the workflow if fuzzing finds issues - it's for discovery
+    continue-on-error: true
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install Rust nightly toolchain
+      uses: dtolnay/rust-toolchain@nightly
+    
+    - name: Setup Rust cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: data_obfuscator
+        cache-on-failure: true
+    
+    - name: Install cargo-fuzz
+      run: cargo install cargo-fuzz
+    
+    - name: Verify fuzz target builds
+      run: cargo fuzz build detect_regexes
+      working-directory: ./data_obfuscator
+    
+    - name: Run fuzzing (short duration for CI)
+      run: |
+        duration="${{ github.event.inputs.duration || '300' }}"
+        echo "Running fuzzing for ${duration} seconds..."
+        
+        # Run fuzzing with timeout - don't fail on findings
+        timeout ${duration}s cargo fuzz run detect_regexes -- -max_total_time=${duration} || true
+        
+        echo "Fuzzing completed."
+      working-directory: ./data_obfuscator
+    
+    - name: Check for crash artifacts
+      run: |
+        if [ -d "fuzz/artifacts/detect_regexes" ] && [ "$(ls -A fuzz/artifacts/detect_regexes)" ]; then
+          echo "⚠️ Fuzzing found potential issues:"
+          ls -la fuzz/artifacts/detect_regexes/
+          echo "Crash artifacts found - this is informational only"
+        else
+          echo "✅ No crash artifacts found during fuzzing"
+        fi
+      working-directory: ./data_obfuscator
+    
+    - name: Run fuzz smoke tests (stable Rust fallback)
+      run: |
+        # Switch back to stable for smoke tests
+        rustup default stable
+        echo "Running fuzz smoke tests with stable Rust..."
+        cargo test --test fuzz_smoke_test
+      working-directory: ./data_obfuscator
+    
+    - name: Upload artifacts if found
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: fuzz-artifacts-${{ github.run_number }}
+        path: |
+          data_obfuscator/fuzz/artifacts/
+          data_obfuscator/fuzz/coverage/
+        if-no-files-found: ignore
+        retention-days: 30
+    
+    - name: Report fuzzing results
+      if: always()
+      run: |
+        echo "## Fuzzing Results" >> $GITHUB_STEP_SUMMARY
+        echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Duration | ${{ github.event.inputs.duration || '300' }} seconds |" >> $GITHUB_STEP_SUMMARY
+        echo "| Target | detect_regexes |" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -d "data_obfuscator/fuzz/artifacts/detect_regexes" ] && [ "$(ls -A data_obfuscator/fuzz/artifacts/detect_regexes)" ]; then
+          artifact_count=$(ls data_obfuscator/fuzz/artifacts/detect_regexes | wc -l)
+          echo "| Artifacts Found | ${artifact_count} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ⚠️ Issues Found (Non-blocking) |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| Artifacts Found | 0 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ✅ Clean Run |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Fuzzing is informational and does not block CI/CD pipeline." >> $GITHUB_STEP_SUMMARY

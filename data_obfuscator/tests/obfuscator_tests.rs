@@ -7,7 +7,7 @@ fn obfuscates_email() {
     let mut obfuscator = Obfuscator::new(&rules).unwrap();
     let input = "Contact me at test@example.com";
     let out = obfuscator.obfuscate_text(input);
-    assert!(out.contains("[EMAIL-0]"));
+    assert!(out.contains("[EMAIL-"));
     let map = obfuscator.placeholder_map();
     let de = data_obfuscator::deobfuscator::deobfuscate_text(&out, map);
     assert_eq!(de, input);

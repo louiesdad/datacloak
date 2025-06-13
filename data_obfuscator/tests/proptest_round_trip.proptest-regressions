@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 0e218cf5383b50f33e58404428ce7542fd6f8ba6d42413be242bdd83bda9e8fc # shrinks to text = "WPe.v4-m q IK5x-.1Ra5ay .FIt 4E-o.foSjsPlI.tSy4-0.UfLhD1Me.SxD ATCR a. GT -C1q-7f3-GeyTh  ..m6cQGI.t1E- P 7f .60A2mbIjDL8.qiBN s3H7-m3 -.ZSrpY.A0-Hr--f-mpjUG-19N--5e-Cu4O-.g fi6y-fb-SUOm8 t1D Q-hq nA2z 2t -y PVj- 7ri M 0. 2zb6Qzk . 0u 6.6 j9TMW9q.UBN h TRCGiE44A---25.2U hyJx2F.8W6xOW. z5  Q. 5Kf1i-.-i2dpy1.-E @ly7m-Ns4R-T...-HN kr8.-.OcE j --Lh0 VS qzOne S  ZB.8F0y2k@g2X.G59t4-xKjoALJRzF. .b6.9Y-fm 8qZ- ZMM36x6 .35-dhnB. ZZc z OaT  r-a Xekt .R.Rw 1A7-pqCF -Ghp9-p--zD9QUXGlk@X.6jJ XTY  -2YZ-jp7fe8SeBR5dl6.N.l7-4.r.gP ZZdyYW7wTL0- Z- 5..kDk-7vG 6s3 SKY1 6yvkxNf0Vj.CX0-vpW -i-N4  -mrH2Vtom4 lJ 2.. bwIN80.kJ7 S.7sYi2V  9DZ-5  -7A-jQ l Z7BQ2aQJ  ..N mN.I.6QIf59p- 96 -Ks. 9 .X.e..ET J0Daa m5A  TqECIm.e Oa1 v  9 7O  1HHS1EV fH AG 8U  DRoD002A73O6.mlf0 9 h 8GzV-7 -R. .hz-09g89I q9-Eurr V.  --7 W7.92. .N7q- .-yKGL.0  1Cons 9x9LY3@s--BW S.n5kUT1-. jUg v rVzJ.pqEX9lVh@LJ64 vW4 .D-z-vYvHC3Dqjep y NSETRO1.2Qn-7 gZt.W19p8n4@H. c- U5t.y4QA--DK9L 5Lid2C w80Wq43. kdsuOr-.fbXG7CVp-0mIn"
+cc 5d5374f30d6c5e3263fbee6ed037cbe56fc40bda755dd4fbea4dc3208fe38283 # shrinks to json_lines = "[\"100-10-1000\"]\n{\"_\":[\"A aaA contact aaa@aaa.aa\"]}"

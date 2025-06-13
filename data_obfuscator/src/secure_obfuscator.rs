@@ -1,5 +1,7 @@
 use regex::{RegexSet, Regex};
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt, AsyncRead, AsyncReadExt};
 use crate::config::Rule;
 use crate::obfuscator::StreamConfig;
@@ -211,12 +213,23 @@ impl SecureObfuscator {
         if let Some(token) = self.reverse_map.get(matched) {
             token.clone()
         } else {
-            let token = format!("[{}-{}]", label, self.placeholder_counter);
-            self.placeholder_counter += 1;
+            // Use deterministic token generation for consistency
+            let token_id = Self::generate_deterministic_token_id(matched, label);
+            let token = format!("[{}-{}]", label, token_id);
             self.placeholder_map.insert(token.clone(), matched.to_string());
             self.reverse_map.insert(matched.to_string(), token.clone());
             token
         }
+    }
+    
+    fn generate_deterministic_token_id(matched: &str, label: &str) -> usize {
+        let mut hasher = DefaultHasher::new();
+        matched.hash(&mut hasher);
+        label.hash(&mut hasher);
+        let hash = hasher.finish();
+        
+        // Generate a deterministic ID based on content
+        (hash % 1000000) as usize
     }
     
     pub async fn obfuscate_stream<R, W>(
@@ -318,7 +331,7 @@ mod tests {
         let input = "Contact user@example.com for info";
         let result = obfuscator.obfuscate_text(input);
         
-        assert!(result.contains("[EMAIL-0]"));
+        assert!(result.contains("[EMAIL-"));
         assert!(!result.contains("user@example.com"));
     }
     
@@ -336,7 +349,7 @@ mod tests {
         let input = "Payment card: 4532015112830366";
         let result = obfuscator.obfuscate_text(input);
         
-        assert!(result.contains("[CREDIT_CARD-0]"));
+        assert!(result.contains("[CREDIT_CARD-"));
         assert!(!result.contains("4532015112830366"));
     }
     
@@ -353,7 +366,7 @@ mod tests {
         let input = "SSN: 123-45-6789";
         let result = obfuscator.obfuscate_text(input);
         
-        assert!(result.contains("[SSN-0]"));
+        assert!(result.contains("[SSN-"));
         assert!(!result.contains("123-45-6789"));
     }
     

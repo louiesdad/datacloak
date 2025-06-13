@@ -1,5 +1,7 @@
-use regex::{Captures, Regex};
+use regex::{Regex, RegexSet};
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt, AsyncRead, AsyncReadExt};
 use crate::config::Rule;
 use thiserror::Error;
@@ -32,6 +34,9 @@ pub struct Obfuscator {
     placeholder_counter: usize,
     placeholder_map: HashMap<String, String>,
     reverse_map: HashMap<String, String>,
+    // Performance optimization with RegexSet
+    regex_set: Option<RegexSet>,
+    patterns: Vec<String>,
 }
 
 impl Obfuscator {
@@ -42,36 +47,88 @@ impl Obfuscator {
                 .map_err(|e| ObfuscationError::RegexCompile(e.to_string()))?;
             rules.push((compiled, r.label.clone()));
         }
+        let patterns: Vec<String> = rule_cfg.iter().map(|r| r.pattern.clone()).collect();
+        let regex_set = if patterns.is_empty() {
+            Some(RegexSet::new(&[r"$^"]).unwrap()) // Never matches
+        } else {
+            RegexSet::new(&patterns).ok()
+        };
+        
         Ok(Self {
             rules,
             placeholder_counter: 0,
             placeholder_map: HashMap::new(),
             reverse_map: HashMap::new(),
+            regex_set,
+            patterns,
         })
     }
 
     pub fn obfuscate_text(&mut self, input: &str) -> String {
-        let mut intermediate = input.to_string();
-        for (regex, label) in &self.rules {
-            let placeholder_counter = &mut self.placeholder_counter;
-            let placeholder_map = &mut self.placeholder_map;
-            let reverse_map = &mut self.reverse_map;
-            intermediate = regex
-                .replace_all(&intermediate, |caps: &Captures| {
-                    let matched = caps.get(0).unwrap().as_str().to_string();
-                    if let Some(token) = reverse_map.get(&matched) {
-                        token.clone()
-                    } else {
-                        let token = format!("[{}-{}]", label, *placeholder_counter);
-                        *placeholder_counter += 1;
-                        placeholder_map.insert(token.clone(), matched.clone());
-                        reverse_map.insert(matched, token.clone());
-                        token
-                    }
-                })
-                .into_owned();
+        // Skip processing very long texts to prevent ReDoS
+        if input.len() > 100_000 {
+            return input.to_string();
         }
-        intermediate
+        
+        let mut result = input.to_string();
+        
+        // Use RegexSet for fast pattern matching if available
+        if let Some(regex_set) = &self.regex_set {
+            let matches: Vec<usize> = regex_set.matches(input).into_iter().collect();
+            
+            // Only apply regexes that actually match
+            for &pattern_idx in &matches {
+                if pattern_idx < self.rules.len() {
+                    result = self.apply_regex_at_index(&result, pattern_idx);
+                }
+            }
+        } else {
+            // Fallback to sequential processing
+            for i in 0..self.rules.len() {
+                result = self.apply_regex_at_index(&result, i);
+            }
+        }
+        
+        result
+    }
+    
+    fn apply_regex_at_index(&mut self, text: &str, index: usize) -> String {
+        // Collect matches first to avoid borrowing conflicts
+        let matches: Vec<String> = {
+            let (regex, _) = &self.rules[index];
+            regex.find_iter(text)
+                .take(1000) // Limit matches for performance
+                .map(|mat| mat.as_str().to_string())
+                .collect()
+        };
+        
+        let mut result = text.to_string();
+        let label = self.rules[index].1.clone();
+        
+        for matched in matches {
+            if let Some(token) = self.reverse_map.get(&matched) {
+                result = result.replace(&matched, token);
+            } else {
+                let token_id = Self::generate_deterministic_token_id(&matched, &label);
+                let token = format!("[{}-{}]", label, token_id);
+                self.placeholder_map.insert(token.clone(), matched.clone());
+                self.reverse_map.insert(matched.clone(), token.clone());
+                result = result.replace(&matched, &token);
+            }
+        }
+        
+        result
+    }
+    
+    fn generate_deterministic_token_id(matched: &str, label: &str) -> usize {
+        let mut hasher = DefaultHasher::new();
+        matched.hash(&mut hasher);
+        label.hash(&mut hasher);
+        let hash = hasher.finish();
+        
+        // Generate a deterministic ID based on content
+        // This ensures the same content gets the same token across different obfuscator instances
+        (hash % 1000000) as usize
     }
 
     pub async fn obfuscate_stream<R, W>(
