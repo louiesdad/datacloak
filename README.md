@@ -164,7 +164,6 @@ DataCloak is designed for high-performance data processing with configurable chu
 
 - **PostgreSQL**: Cursor-based streaming for large queries
 - **CSV**: Memory-mapped file processing
-- **Parquet**: Columnar data format support
 - **JSON**: In-memory processing for smaller datasets
 
 ## Pattern Types
