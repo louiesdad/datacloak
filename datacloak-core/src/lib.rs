@@ -1,13 +1,21 @@
 //! DataCloak: High-performance data obfuscation library
 
 pub mod cache;
+pub mod column_profiler;
 pub mod crypto;
 pub mod data_source;
 pub mod detector;
 pub mod errors;
+pub mod feature_extractor;
+pub mod graph;
 pub mod llm_batch;
+pub mod ml_classifier;
+pub mod ml_graph_integration;
+pub mod model_optimization;
 pub mod obfuscator;
+pub mod onnx_model;
 pub mod patterns;
+pub mod performance;
 pub mod streaming;
 
 #[cfg(test)]

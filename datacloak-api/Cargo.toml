@@ -1,0 +1,62 @@
+[package]
+name = "datacloak-api"
+version = "0.1.0"
+edition = "2021"
+authors = ["DataCloak Team"]
+description = "RESTful API service for DataCloak multi-field sentiment analysis"
+license = "MIT"
+
+[dependencies]
+# Web framework
+actix-web = "4.0"
+actix-rt = "2.9"
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+tokio-stream = "0.1"
+futures = "0.3"
+async-trait = "0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "json", "uuid", "chrono"] }
+
+# Utilities
+uuid = { version = "1.6", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging and metrics
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter", "json"] }
+tracing-actix-web = "0.7"
+prometheus = { version = "0.13", features = ["process"] }
+
+# OpenAPI documentation
+utoipa = { version = "4.2", features = ["actix_extras"] }
+utoipa-swagger-ui = { version = "6.0", features = ["actix-web"] }
+
+# Streaming
+actix-web-lab = "0.20"  # For SSE support
+async-stream = "0.3"
+
+# Validation
+validator = { version = "0.16", features = ["derive"] }
+
+# Caching
+redis = { version = "0.24", features = ["tokio-comp", "serde_json"] }
+rand = "0.8"
+
+# System info
+sys-info = "0.9"
+
+# Local dependencies
+datacloak-core = { path = "../datacloak-core" }
+
+[dev-dependencies]
+mockito = "1"
+tempfile = "3.8"

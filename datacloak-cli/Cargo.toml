@@ -60,6 +60,9 @@ governor = "0.6"
 tempfile = "3.8"
 mockito = "1"
 cargo-husky = "1"
+assert_cmd = "2.0"
+predicates = "3.0"
+proptest = "1.4"
 
 # Cargo-husky configuration for pre-commit hooks
 [package.metadata.husky]

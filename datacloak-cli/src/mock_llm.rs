@@ -54,6 +54,8 @@ pub enum ScenarioType {
     MedicalRecords,
     FinancialFraud,
     Generic,
+    MultiField,
+    SentimentAnalysis,
 }
 
 impl ScenarioType {
@@ -62,6 +64,8 @@ impl ScenarioType {
             "customer-churn" => ScenarioType::CustomerChurn,
             "medical-records" => ScenarioType::MedicalRecords,
             "financial-fraud" => ScenarioType::FinancialFraud,
+            "multi-field" => ScenarioType::MultiField,
+            "sentiment-analysis" => ScenarioType::SentimentAnalysis,
             _ => ScenarioType::Generic,
         }
     }
@@ -150,6 +154,8 @@ impl MockLlmServer {
             ScenarioType::CustomerChurn => self.generate_churn_response(user_content),
             ScenarioType::MedicalRecords => self.generate_medical_response(user_content),
             ScenarioType::FinancialFraud => self.generate_fraud_response(user_content),
+            ScenarioType::MultiField => self.generate_multi_field_response(user_content),
+            ScenarioType::SentimentAnalysis => self.generate_sentiment_analysis_response(user_content),
             ScenarioType::Generic => self.generate_generic_response(user_content),
         }
     }
@@ -212,6 +218,97 @@ impl MockLlmServer {
     
     fn generate_generic_response(&self, _content: &str) -> String {
         "I have analyzed the obfuscated data and provided insights while maintaining privacy.".to_string()
+    }
+    
+    fn generate_multi_field_response(&self, content: &str) -> String {
+        // Parse multi-field request
+        if content.contains("Field:") {
+            let mut fields = Vec::new();
+            let lines: Vec<&str> = content.lines().collect();
+            let mut i = 0;
+            
+            while i < lines.len() {
+                if lines[i].starts_with("Field:") {
+                    let field_name = lines[i].replace("Field:", "").trim().to_string();
+                    if i + 1 < lines.len() && lines[i + 1].starts_with("Text:") {
+                        let text = lines[i + 1].replace("Text:", "").trim().to_string();
+                        let sentiment = self.analyze_sentiment(&text);
+                        fields.push(serde_json::json!({
+                            "field": field_name,
+                            "sentiment": sentiment.0,
+                            "confidence": sentiment.1,
+                        }));
+                        i += 2;
+                    } else {
+                        i += 1;
+                    }
+                } else {
+                    i += 1;
+                }
+            }
+            
+            serde_json::json!({
+                "analysis_type": "multi_field_sentiment",
+                "fields": fields,
+                "model_version": "mock-v1.0"
+            }).to_string()
+        } else {
+            self.generate_generic_response(content)
+        }
+    }
+    
+    fn generate_sentiment_analysis_response(&self, content: &str) -> String {
+        // Try to parse as JSON first
+        if let Ok(json_data) = serde_json::from_str::<serde_json::Value>(content) {
+            if let Some(fields) = json_data.get("fields").and_then(|f| f.as_object()) {
+                let mut field_results = serde_json::Map::new();
+                
+                for (field_name, field_text) in fields {
+                    if let Some(text) = field_text.as_str() {
+                        let (sentiment, confidence) = self.analyze_sentiment(text);
+                        field_results.insert(field_name.clone(), serde_json::json!({
+                            "sentiment": sentiment,
+                            "confidence": confidence,
+                            "text_length": text.len(),
+                        }));
+                    }
+                }
+                
+                return serde_json::json!({
+                    "record_id": json_data.get("record_id").and_then(|r| r.as_str()).unwrap_or("unknown"),
+                    "fields": field_results,
+                    "analysis_type": "sentiment_analysis",
+                    "timestamp": chrono::Utc::now().to_rfc3339(),
+                }).to_string();
+            }
+        }
+        
+        // Fallback to simple sentiment analysis
+        let (sentiment, confidence) = self.analyze_sentiment(content);
+        serde_json::json!({
+            "sentiment": sentiment,
+            "confidence": confidence,
+            "analysis_type": "sentiment_analysis",
+        }).to_string()
+    }
+    
+    fn analyze_sentiment(&self, text: &str) -> (&'static str, f32) {
+        let text_lower = text.to_lowercase();
+        
+        // Simple keyword-based sentiment analysis
+        let positive_words = ["excellent", "great", "amazing", "love", "wonderful", "fantastic", "good", "recommend"];
+        let negative_words = ["bad", "terrible", "hate", "awful", "poor", "issue", "problem", "cancel"];
+        
+        let positive_count = positive_words.iter().filter(|&word| text_lower.contains(word)).count();
+        let negative_count = negative_words.iter().filter(|&word| text_lower.contains(word)).count();
+        
+        if positive_count > negative_count {
+            ("positive", 0.8 + (rand::random::<f32>() * 0.2))
+        } else if negative_count > positive_count {
+            ("negative", 0.8 + (rand::random::<f32>() * 0.2))
+        } else {
+            ("neutral", 0.6 + (rand::random::<f32>() * 0.3))
+        }
     }
     
     fn extract_customer_records(&self, content: &str) -> Vec<HashMap<String, String>> {
@@ -452,3 +549,129 @@ impl warp::reject::Reject for RateLimitError {}
 #[derive(Debug)]
 struct SimulatedError;
 impl warp::reject::Reject for SimulatedError {}
+
+/// Builder for MockLlmServer with configurable parameters
+pub struct MockLlmServerBuilder {
+    scenario: Option<String>,
+    error_rate: f32,
+    latency_range: (u64, u64),
+    rate_limit: u32,
+}
+
+impl MockLlmServerBuilder {
+    pub fn new() -> Self {
+        Self {
+            scenario: None,
+            error_rate: 0.02,
+            latency_range: (50, 200),
+            rate_limit: 10,
+        }
+    }
+    
+    pub fn with_scenario(mut self, scenario: &str) -> Self {
+        self.scenario = Some(scenario.to_string());
+        self
+    }
+    
+    pub fn with_error_rate(mut self, rate: f32) -> Self {
+        self.error_rate = rate;
+        self
+    }
+    
+    pub fn with_latency(mut self, min_ms: u64, max_ms: u64) -> Self {
+        self.latency_range = (min_ms, max_ms);
+        self
+    }
+    
+    pub fn with_rate_limit(mut self, requests_per_second: u32) -> Self {
+        self.rate_limit = requests_per_second;
+        self
+    }
+    
+    pub fn build(self) -> MockLlmServer {
+        let scenario = self.scenario
+            .map(|s| ScenarioType::from_str(&s))
+            .unwrap_or(ScenarioType::Generic);
+        
+        let quota = Quota::per_second(NonZeroU32::new(self.rate_limit).unwrap());
+        let rate_limiter = Arc::new(governor::RateLimiter::direct(quota));
+        
+        MockLlmServer {
+            scenario,
+            error_rate: self.error_rate,
+            latency_range: self.latency_range,
+            rate_limiter,
+        }
+    }
+}
+
+impl MockLlmServer {
+    pub async fn start(self: Arc<Self>, port: u16) -> Result<()> {
+        info!("Starting mock LLM server on port {} with scenario {:?}", port, self.scenario);
+        
+        let server = self.clone();
+        let chat_route = warp::path("v1")
+            .and(warp::path("chat"))
+            .and(warp::path("completions"))
+            .and(warp::post())
+            .and(warp::header::<String>("authorization"))
+            .and(warp::body::json())
+            .and(warp::any().map(move || server.clone()))
+            .and_then(handle_chat_request);
+        
+        let health_route = warp::path("health")
+            .and(warp::get())
+            .map(|| warp::reply::with_status("OK", warp::http::StatusCode::OK));
+        
+        let routes = chat_route
+            .or(health_route)
+            .recover(handle_rejection);
+        
+        info!("Mock LLM server ready at http://localhost:{}", port);
+        warp::serve(routes)
+            .run(([127, 0, 0, 1], port))
+            .await;
+        
+        Ok(())
+    }
+}
+
+/// Response templates for consistent mock responses
+pub struct ResponseTemplates;
+
+impl ResponseTemplates {
+    pub fn new() -> Self {
+        Self
+    }
+    
+    pub fn sentiment_response(&self, text: &str) -> String {
+        let text_lower = text.to_lowercase();
+        let (sentiment, confidence) = if text_lower.contains("amazing") || text_lower.contains("great") {
+            ("positive", 0.95)
+        } else if text_lower.contains("terrible") || text_lower.contains("bad") {
+            ("negative", 0.90)
+        } else {
+            ("neutral", 0.75)
+        };
+        
+        serde_json::json!({
+            "sentiment": sentiment,
+            "confidence": confidence,
+            "keywords": ["mock", "test"],
+        }).to_string()
+    }
+    
+    pub fn churn_response(&self, text: &str) -> String {
+        let risk = if text.to_lowercase().contains("cancel") {
+            "high_risk"
+        } else {
+            "low_risk"
+        };
+        
+        serde_json::json!({
+            "churn_risk": risk,
+            "probability": if risk == "high_risk" { 0.85 } else { 0.15 },
+            "factors": ["mock_factor"],
+        }).to_string()
+    }
+}

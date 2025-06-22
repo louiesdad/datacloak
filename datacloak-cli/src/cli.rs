@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 use anyhow::Result;
 use datacloak_core::{
@@ -9,15 +9,64 @@ use serde_json;
 use tracing::{info, warn, error};
 
 #[derive(Parser)]
-#[command(name = "datacloak-cli")]
-#[command(about = "DataCloak CLI for functional testing and analysis")]
+#[command(name = "datacloak")]
+#[command(about = "Multi-field sentiment analysis with auto-discovery")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
 }
 
+#[derive(Clone, Debug, ValueEnum, PartialEq)]
+pub enum OutputFormat {
+    Json,
+    Csv,
+    Stream,
+}
+
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Profile columns to find text-heavy candidates
+    Profile {
+        #[arg(short, long)]
+        file: PathBuf,
+        
+        #[arg(short, long, default_value = "json")]
+        output: OutputFormat,
+        
+        #[arg(long)]
+        ml_only: bool,
+        
+        #[arg(long)]
+        graph_only: bool,
+    },
+    
+    /// Analyze sentiment in multiple fields
+    Analyze {
+        #[arg(short, long)]
+        file: PathBuf,
+        
+        #[arg(short, long, value_delimiter = ',')]
+        columns: Option<Vec<String>>,
+        
+        #[arg(long)]
+        auto_discover: bool,
+        
+        #[arg(long, default_value = "0.7")]
+        threshold: f32,
+        
+        #[arg(long)]
+        dry_run: bool,
+        
+        #[arg(short, long, default_value = "json")]
+        output: OutputFormat,
+        
+        #[arg(long)]
+        mock_llm: bool,
+        
+        #[arg(short = 'k', long)]
+        api_key: Option<String>,
+    },
+    
     /// Detect sensitive patterns in data
     Detect {
         #[arg(short, long)]
@@ -27,6 +76,7 @@ pub enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+    
     /// Obfuscate data with given patterns
     Obfuscate {
         #[arg(short, long)]
@@ -40,21 +90,7 @@ pub enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
-    /// Full pipeline: detect → obfuscate → LLM analysis
-    Analyze {
-        #[arg(short, long)]
-        file: PathBuf,
-        #[arg(short, long, default_value = "100")]
-        rows: usize,
-        #[arg(short, long)]
-        patterns: Option<PathBuf>,
-        #[arg(short = 'k', long)]
-        api_key: Option<String>,
-        #[arg(long)]
-        dry_run: bool,
-        #[arg(short, long)]
-        output: Option<PathBuf>,
-    },
+    
     /// Start mock LLM server
     MockServer {
         #[arg(short, long, default_value = "3001")]
@@ -62,6 +98,7 @@ pub enum Commands {
         #[arg(short, long)]
         scenario: Option<String>,
     },
+    
     /// Run a specific test scenario
     TestScenario {
         #[arg(short, long)]
@@ -69,6 +106,7 @@ pub enum Commands {
         #[arg(long, default_value = "3001")]
         mock_port: u16,
     },
+    
     /// Run all test scenarios
     TestAll {
         #[arg(long, default_value = "3001")]
@@ -179,13 +217,13 @@ pub async fn obfuscate_command(
     // Process data
     let mut stream = data_source.stream(1000).await?;
     let mut all_obfuscated = Vec::new();
-    let mut total_records = 0;
+    let mut _total_records = 0;
     let mut row_count = 0;
     
     use futures::StreamExt;
     while let Some(batch) = stream.next().await {
         let batch = batch?;
-        total_records += batch.len();
+        _total_records += batch.len();
         
         let obfuscated_batch = datacloak.obfuscate_batch(batch).await?;
         all_obfuscated.extend(obfuscated_batch);
@@ -389,4 +427,319 @@ fn mask_sample(value: &str) -> String {
     } else {
         format!("{}***{}", &value[..2], &value[value.len()-2..])
     }
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct ProfileOutput {
+    pub candidates: Vec<ColumnCandidate>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct ColumnCandidate {
+    pub name: String,
+    pub score: f32,
+    pub ml_probability: f32,
+    pub graph_score: f32,
+    pub column_type: String,
+}
+
+pub async fn profile_command(
+    file: PathBuf,
+    output: OutputFormat,
+    ml_only: bool,
+    graph_only: bool,
+) -> Result<()> {
+    info!("Profiling columns in {}", file.display());
+    
+    // Read CSV file to get columns
+    let csv_content = tokio::fs::read_to_string(&file).await?;
+    let mut reader = csv::Reader::from_reader(csv_content.as_bytes());
+    
+    let headers = reader.headers()?.clone();
+    let column_names: Vec<String> = headers.iter().map(|h| h.to_string()).collect();
+    
+    // Collect sample data for each column
+    let mut column_data: Vec<Vec<String>> = vec![vec![]; column_names.len()];
+    let mut row_count = 0;
+    
+    for result in reader.records() {
+        let record = result?;
+        for (i, value) in record.iter().enumerate() {
+            if i < column_data.len() {
+                column_data[i].push(value.to_string());
+            }
+        }
+        row_count += 1;
+        if row_count >= 1000 { // Sample first 1000 rows
+            break;
+        }
+    }
+    
+    // Create ML classifier
+    use datacloak_core::ml_classifier::{MLClassifier, Column};
+    let classifier = MLClassifier::new();
+    
+    // Analyze each column
+    let mut candidates = Vec::new();
+    
+    for (i, name) in column_names.iter().enumerate() {
+        let column = Column::new(name, column_data[i].iter().map(|s| s.as_str()).collect());
+        
+        // ML prediction
+        let ml_prediction = if !graph_only {
+            classifier.predict(&column)
+        } else {
+            datacloak_core::ml_classifier::Prediction {
+                column_type: datacloak_core::ml_classifier::ColumnType::Unknown,
+                confidence: 0.0,
+            }
+        };
+        
+        // Graph score (placeholder for now - Dev 2 will implement)
+        let graph_score = if !ml_only {
+            // Simple heuristic based on column name
+            if name.contains("description") || name.contains("comment") || 
+               name.contains("feedback") || name.contains("review") || 
+               name.contains("notes") || name.contains("text") {
+                0.8
+            } else {
+                0.2
+            }
+        } else {
+            0.0
+        };
+        
+        // Calculate combined score
+        let ml_prob = ml_prediction.confidence;
+        let combined_score = if ml_only {
+            ml_prob
+        } else if graph_only {
+            graph_score
+        } else {
+            (ml_prob + graph_score) / 2.0
+        };
+        
+        candidates.push(ColumnCandidate {
+            name: name.clone(),
+            score: combined_score,
+            ml_probability: ml_prob,
+            graph_score,
+            column_type: format!("{:?}", ml_prediction.column_type),
+        });
+    }
+    
+    // Sort by score descending
+    candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
+    
+    let profile_output = ProfileOutput { candidates };
+    
+    // Output results
+    match output {
+        OutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&profile_output)?);
+        }
+        OutputFormat::Csv => {
+            println!("name,score,ml_probability,graph_score,column_type");
+            for c in &profile_output.candidates {
+                println!("{},{},{},{},{}", c.name, c.score, c.ml_probability, c.graph_score, c.column_type);
+            }
+        }
+        OutputFormat::Stream => {
+            for c in &profile_output.candidates {
+                println!("{}", serde_json::to_string(&c)?);
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct AnalysisResult {
+    pub record_id: String,
+    pub column: String,
+    pub sentiment: String,
+    pub confidence: f32,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct DryRunOutput {
+    pub estimated_time_seconds: u64,
+    pub estimated_cost_usd: f64,
+    pub selected_columns: Vec<String>,
+}
+
+pub async fn analyze_multi_field_command(
+    file: PathBuf,
+    columns: Option<Vec<String>>,
+    auto_discover: bool,
+    _threshold: f32,
+    dry_run: bool,
+    output: OutputFormat,
+    mock_llm: bool,
+    _api_key: Option<String>,
+) -> Result<()> {
+    info!("Running multi-field analysis on {}", file.display());
+    
+    // Determine which columns to analyze
+    let selected_columns = if auto_discover {
+        // Run profiling to discover columns
+        let csv_content = tokio::fs::read_to_string(&file).await?;
+        let mut reader = csv::Reader::from_reader(csv_content.as_bytes());
+        let headers = reader.headers()?.clone();
+        let column_names: Vec<String> = headers.iter().map(|h| h.to_string()).collect();
+        
+        // Profile columns (simplified for now)
+        let mut discovered = Vec::new();
+        for name in &column_names {
+            // Simple heuristic - in real implementation would use ML classifier
+            if name.contains("feedback") || name.contains("comment") || 
+               name.contains("review") || name.contains("description") ||
+               name.contains("notes") || name.contains("text") {
+                discovered.push(name.clone());
+            }
+        }
+        
+        eprintln!("Auto-discovered {} columns for analysis: {:?}", discovered.len(), discovered);
+        discovered
+    } else if let Some(cols) = columns {
+        // Validate columns exist
+        let csv_content = tokio::fs::read_to_string(&file).await?;
+        let mut reader = csv::Reader::from_reader(csv_content.as_bytes());
+        let headers = reader.headers()?.clone();
+        let header_set: std::collections::HashSet<_> = headers.iter().collect();
+        
+        for col in &cols {
+            if !header_set.contains(col.as_str()) {
+                return Err(anyhow::anyhow!("Column '{}' not found in file", col));
+            }
+        }
+        cols
+    } else {
+        return Err(anyhow::anyhow!("Must specify --columns or use --auto-discover"));
+    };
+    
+    if dry_run {
+        // Estimate time and cost
+        let csv_content = tokio::fs::read_to_string(&file).await?;
+        let line_count = csv_content.lines().count() - 1; // Subtract header
+        
+        let estimated_time = (line_count * selected_columns.len()) / 100; // 100 items/second
+        let estimated_cost = (line_count * selected_columns.len()) as f64 * 0.0001; // $0.0001 per item
+        
+        let dry_run_output = DryRunOutput {
+            estimated_time_seconds: estimated_time as u64,
+            estimated_cost_usd: estimated_cost,
+            selected_columns: selected_columns.clone(),
+        };
+        
+        println!("{}", serde_json::to_string_pretty(&dry_run_output)?);
+        return Ok(());
+    }
+    
+    // Process the file
+    let csv_content = tokio::fs::read_to_string(&file).await?;
+    let mut reader = csv::Reader::from_reader(csv_content.as_bytes());
+    let headers = reader.headers()?.clone();
+    
+    // Find column indices
+    let column_indices: Vec<usize> = selected_columns.iter()
+        .filter_map(|col| headers.iter().position(|h| h == col))
+        .collect();
+    
+    let mut results = Vec::new();
+    let mut progress = 0;
+    
+    // Count total records first
+    let record_count = csv_content.lines().count() - 1; // Subtract header
+    let total_items = record_count * selected_columns.len();
+    
+    // Report initial progress
+    if output != OutputFormat::Stream && total_items > 0 {
+        eprintln!("Processing {} items across {} columns...", total_items, selected_columns.len());
+    }
+    
+    // Re-create reader
+    let mut reader = csv::Reader::from_reader(csv_content.as_bytes());
+    reader.headers()?; // Skip header
+    
+    for (row_idx, result) in reader.records().enumerate() {
+        let record = result?;
+        let record_id = record.get(0).unwrap_or(&row_idx.to_string()).to_string();
+        
+        for (col_idx, &field_idx) in column_indices.iter().enumerate() {
+            let column_name = &selected_columns[col_idx];
+            let text = record.get(field_idx).unwrap_or("");
+            
+            // Analyze sentiment (mock for now)
+            let (sentiment, confidence) = if mock_llm {
+                // Simple mock sentiment based on keywords
+                if text.contains("great") || text.contains("excellent") || text.contains("love") {
+                    ("positive", 0.9)
+                } else if text.contains("bad") || text.contains("terrible") || text.contains("hate") {
+                    ("negative", 0.85)
+                } else {
+                    ("neutral", 0.7)
+                }
+            } else {
+                // Would call real LLM here
+                ("neutral", 0.5)
+            };
+            
+            results.push(AnalysisResult {
+                record_id: record_id.clone(),
+                column: column_name.clone(),
+                sentiment: sentiment.to_string(),
+                confidence,
+            });
+            
+            progress += 1;
+            if output == OutputFormat::Stream {
+                // Stream results immediately
+                println!("{}", serde_json::to_string(&results.last().unwrap())?);
+            } else if progress % 10 == 0 || progress == total_items {
+                // Report progress
+                let percent = (progress * 100) / total_items;
+                eprintln!("Processing... {}%", percent);
+            }
+        }
+    }
+    
+    // Output results
+    match output {
+        OutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&results)?);
+        }
+        OutputFormat::Csv => {
+            // Output CSV with sentiment columns
+            print!("id");
+            for col in &selected_columns {
+                print!(",{}_sentiment,{}_confidence", col, col);
+            }
+            println!();
+            
+            // Group results by record_id
+            let mut record_map: std::collections::HashMap<String, Vec<&AnalysisResult>> = std::collections::HashMap::new();
+            for result in &results {
+                record_map.entry(result.record_id.clone()).or_default().push(result);
+            }
+            
+            for (record_id, record_results) in record_map {
+                print!("{}", record_id);
+                for col in &selected_columns {
+                    if let Some(result) = record_results.iter().find(|r| r.column == *col) {
+                        print!(",{},{}", result.sentiment, result.confidence);
+                    } else {
+                        print!(",,");
+                    }
+                }
+                println!();
+            }
+        }
+        OutputFormat::Stream => {
+            // Already streamed
+        }
+    }
+    
+    Ok(())
 }

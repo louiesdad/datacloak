@@ -19,14 +19,17 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::Profile { file, output, ml_only, graph_only } => {
+            cli::profile_command(file, output, ml_only, graph_only).await
+        }
+        Commands::Analyze { file, columns, auto_discover, threshold, dry_run, output, mock_llm, api_key } => {
+            cli::analyze_multi_field_command(file, columns, auto_discover, threshold, dry_run, output, mock_llm, api_key).await
+        }
         Commands::Detect { file, rows, output } => {
             cli::detect_command(file, rows, output).await
         }
         Commands::Obfuscate { file, patterns, rows, output, dry_run } => {
             cli::obfuscate_command(file, patterns, rows, output, dry_run).await
-        }
-        Commands::Analyze { file, rows, patterns, api_key, dry_run, output } => {
-            cli::analyze_command(file, rows, patterns, api_key, dry_run, output).await
         }
         Commands::MockServer { port, scenario } => {
             mock_llm::start_mock_server(port, scenario).await

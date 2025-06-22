@@ -61,10 +61,19 @@ unicode-segmentation = "1.10"
 uuid = { version = "1.6", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 
+# Graph algorithms and similarity search
+petgraph = "0.6"
+ordered-float = "4.2"  # For float comparisons in graphs
+faiss = { version = "0.12", optional = true }  # FAISS bindings for similarity search
+simsimd = { version = "5.0", optional = true }  # SIMD-accelerated similarity
+packed_simd_2 = { version = "0.3", optional = true }  # SIMD operations
+
 # Optional ML support
 candle-core = { version = "0.3", optional = true }
 candle-nn = { version = "0.3", optional = true }
 candle-transformers = { version = "0.3", optional = true }
+ort = { version = "2.0.0-rc.2", optional = true }  # ONNX Runtime
+ndarray = { version = "0.15", optional = true }
 aes-gcm = "0.10.3"
 rand = "0.9.1"
 hex = "0.4.3"
@@ -77,8 +86,29 @@ proptest = "1.4"  # Property-based testing
 
 [features]
 default = []
-ml = ["candle-core", "candle-nn", "candle-transformers"]
+ml = ["candle-core", "candle-nn", "candle-transformers", "ort", "ndarray"]
+similarity-search = ["faiss", "simsimd", "packed_simd_2"]
 
 [[bench]]
 name = "obfuscation"
+harness = false
+
+[[bench]]
+name = "graph_benchmark"
+harness = false
+
+[[bench]]
+name = "similarity_benchmark"
+harness = false
+
+[[bench]]
+name = "ml_graph_benchmark"
+harness = false
+
+[[bench]]
+name = "model_optimization_benchmark"
+harness = false
+
+[[bench]]
+name = "performance_benchmark"
 harness = false
