@@ -386,7 +386,9 @@ mod obfuscator_tests {
 mod lib_tests {
     use crate::llm_batch::LlmBatchConfig;
     use crate::streaming::StreamConfig;
-    use crate::{DataCloak, DataCloakConfig};
+    use crate::{
+        DataCloak, DataCloakConfig, SamplingConfig, StreamDetectionConfig, ThreadPoolConfig,
+    };
 
     #[test]
     fn test_datacloak_creation() {
@@ -395,6 +397,9 @@ mod lib_tests {
             max_concurrency: 4,
             llm_config: LlmBatchConfig::default(),
             stream_config: StreamConfig::default(),
+            sampling_config: SamplingConfig::default(),
+            stream_detection_config: StreamDetectionConfig::default(),
+            thread_pool_config: ThreadPoolConfig::default(),
         };
 
         let _datacloak = DataCloak::new(config);
@@ -428,6 +433,9 @@ mod lib_tests {
                 max_concurrent_batches: 8,
                 continue_on_error: false,
             },
+            sampling_config: SamplingConfig::default(),
+            stream_detection_config: StreamDetectionConfig::default(),
+            thread_pool_config: ThreadPoolConfig::default(),
         };
 
         assert_eq!(config.batch_size, 500);

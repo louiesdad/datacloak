@@ -21,6 +21,26 @@ pub enum PatternType {
     Custom(u32), // For user-defined patterns
 }
 
+impl PatternType {
+    /// Get all standard pattern types (excluding custom)
+    pub fn all() -> Vec<PatternType> {
+        vec![
+            PatternType::Email,
+            PatternType::SSN,
+            PatternType::Phone,
+            PatternType::CreditCard,
+            PatternType::IPAddress,
+            PatternType::DateOfBirth,
+            PatternType::MedicalRecordNumber,
+            PatternType::DriversLicense,
+            PatternType::BankAccount,
+            PatternType::Passport,
+            PatternType::Name,
+            PatternType::Address,
+        ]
+    }
+}
+
 impl fmt::Display for PatternType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

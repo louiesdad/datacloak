@@ -102,12 +102,19 @@ pub struct PatternDetector {
 }
 
 /// Detection result for a data source
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DetectionResult {
     pub detected_patterns: Vec<DetectedPattern>,
     pub sample_size: usize,
     pub confidence_scores: HashMap<PatternType, f32>,
     pub recommendations: Vec<PatternRecommendation>,
+    pub pattern_counts: HashMap<PatternType, usize>,
+    pub column_patterns: HashMap<String, Vec<PatternType>>,
+    pub sample_matches: HashMap<PatternType, Vec<String>>,
+    pub total_patterns_detected: usize,
+    pub sampling_strategy: Option<crate::adaptive_sampling::SamplingStrategy>,
+    pub rows_scanned: Option<usize>,
+    pub confidence_score: Option<f64>,
 }
 
 /// A detected pattern with metadata
@@ -146,6 +153,108 @@ impl PatternDetector {
             confidence_threshold,
             compiled_patterns,
         }
+    }
+
+    /// Analyze a batch of records for adaptive sampling
+    pub async fn analyze_batch(&self, batch: Vec<serde_json::Value>) -> Result<DetectionResult> {
+        let sample_size = batch.len();
+        let mut result = DetectionResult::default();
+        result.sample_size = sample_size;
+
+        // Parallel pattern detection
+        let detection_results: Vec<_> = self
+            .compiled_patterns
+            .iter()
+            .par_bridge()
+            .map(|entry| {
+                let pattern_type = *entry.key();
+                let patterns = entry.value();
+                let mut total_matches = 0;
+                let mut sample_matches = Vec::new();
+                let mut column_matches: HashMap<String, usize> = HashMap::new();
+
+                for record in &batch {
+                    // Check if record is an object with fields
+                    if let Some(obj) = record.as_object() {
+                        for (field_name, field_value) in obj {
+                            let text = field_value.to_string();
+                            for pattern in patterns.iter() {
+                                let matches: Vec<_> = pattern.find_iter(&text).collect();
+                                if !matches.is_empty() {
+                                    *column_matches.entry(field_name.clone()).or_insert(0) +=
+                                        matches.len();
+                                    total_matches += matches.len();
+
+                                    // Collect sample matches
+                                    for m in matches.iter() {
+                                        if sample_matches.len() < 10 {
+                                            sample_matches.push(m.as_str().to_string());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Fallback for non-object records
+                        let text = record.to_string();
+                        for pattern in patterns.iter() {
+                            let matches: Vec<_> = pattern.find_iter(&text).collect();
+                            total_matches += matches.len();
+
+                            for m in matches.iter().take(10 - sample_matches.len()) {
+                                if sample_matches.len() < 10 {
+                                    sample_matches.push(m.as_str().to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+
+                (pattern_type, total_matches, sample_matches, column_matches)
+            })
+            .collect();
+
+        // Process results
+        for (pattern_type, match_count, sample_matches, column_matches) in detection_results {
+            if match_count > 0 {
+                result.pattern_counts.insert(pattern_type, match_count);
+                result
+                    .sample_matches
+                    .insert(pattern_type, sample_matches.clone());
+                result.total_patterns_detected += match_count;
+
+                // Update column patterns
+                for (column, _) in column_matches {
+                    result
+                        .column_patterns
+                        .entry(column)
+                        .or_insert_with(Vec::new)
+                        .push(pattern_type);
+                }
+
+                let confidence = (match_count as f32) / (sample_size as f32);
+                result.confidence_scores.insert(pattern_type, confidence);
+
+                if confidence >= self.confidence_threshold {
+                    result.detected_patterns.push(DetectedPattern {
+                        pattern_type,
+                        regex: self
+                            .compiled_patterns
+                            .get(&pattern_type)
+                            .and_then(|patterns| {
+                                patterns.value().first().map(|r| r.as_str().to_string())
+                            })
+                            .unwrap_or_default(),
+                        match_count,
+                        sample_matches: sample_matches.clone(),
+                        confidence,
+                        column_name: None,
+                    });
+                }
+            }
+        }
+
+        Ok(result)
     }
 
     /// Analyze a data source to detect PII patterns
@@ -227,6 +336,13 @@ impl PatternDetector {
             sample_size,
             confidence_scores,
             recommendations,
+            pattern_counts: HashMap::new(),
+            column_patterns: HashMap::new(),
+            sample_matches: HashMap::new(),
+            total_patterns_detected: 0,
+            sampling_strategy: None,
+            rows_scanned: Some(sample_size),
+            confidence_score: None,
         })
     }
 

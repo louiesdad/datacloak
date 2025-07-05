@@ -44,7 +44,7 @@ impl SimilarityCalculator {
         if set1.is_empty() && set2.is_empty() {
             return 1.0;
         }
-        
+
         if set1.is_empty() || set2.is_empty() {
             return 0.0;
         }
@@ -70,14 +70,14 @@ impl SimilarityCalculator {
         token_weight: f32,
     ) -> f32 {
         let embedding_sim = self.cosine_similarity(&col1.embedding, &col2.embedding);
-        
+
         let tokens1: Vec<&str> = col1.tokens.iter().map(|s| s.as_str()).collect();
         let tokens2: Vec<&str> = col2.tokens.iter().map(|s| s.as_str()).collect();
         let token_sim = self.jaccard_similarity(&tokens1, &tokens2);
 
         embedding_weight * embedding_sim + token_weight * token_sim
     }
-    
+
     #[cfg(feature = "similarity-search")]
     pub fn cosine_similarity_simd(&self, vec1: &[f32], vec2: &[f32]) -> f32 {
         super::similarity_simd::cosine_similarity_simd(vec1, vec2)

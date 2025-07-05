@@ -1,8 +1,8 @@
-use petgraph::graph::UnGraph;
+use anyhow::Result;
 use petgraph::graph::NodeIndex as PetNodeIndex;
+use petgraph::graph::UnGraph;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use anyhow::Result;
 
 pub type NodeIndex = PetNodeIndex<u32>;
 
@@ -63,7 +63,8 @@ impl ColumnGraph {
     }
 
     pub fn get_edge_weight(&self, a: NodeIndex, b: NodeIndex) -> Option<f32> {
-        self.graph.find_edge(a, b)
+        self.graph
+            .find_edge(a, b)
             .and_then(|edge| self.graph.edge_weight(edge))
             .copied()
     }
@@ -77,7 +78,9 @@ impl ColumnGraph {
     }
 
     pub fn remove_edges_below_threshold(&mut self, threshold: f32) {
-        let edges_to_remove: Vec<_> = self.graph.edge_indices()
+        let edges_to_remove: Vec<_> = self
+            .graph
+            .edge_indices()
             .filter_map(|edge| {
                 let weight = self.graph.edge_weight(edge)?;
                 if *weight < threshold {
@@ -96,43 +99,48 @@ impl ColumnGraph {
     pub fn node_indices(&self) -> impl Iterator<Item = NodeIndex> + '_ {
         self.graph.node_indices()
     }
-    
+
     pub fn edge_indices(&self) -> impl Iterator<Item = petgraph::graph::EdgeIndex<u32>> + '_ {
         self.graph.edge_indices()
     }
-    
+
     pub fn get_node(&self, idx: NodeIndex) -> Option<&ColumnNode> {
         self.graph.node_weight(idx)
     }
-    
-    pub fn edge_endpoints(&self, edge: petgraph::graph::EdgeIndex<u32>) -> Option<(NodeIndex, NodeIndex)> {
+
+    pub fn edge_endpoints(
+        &self,
+        edge: petgraph::graph::EdgeIndex<u32>,
+    ) -> Option<(NodeIndex, NodeIndex)> {
         self.graph.edge_endpoints(edge)
     }
-    
+
     pub fn edge_weight(&self, edge: petgraph::graph::EdgeIndex<u32>) -> Option<&f32> {
         self.graph.edge_weight(edge)
     }
-    
+
     pub fn get_metrics(&self) -> GraphMetrics {
         let node_count = self.node_count();
         let edge_count = self.edge_count();
-        
+
         let max_edges = if node_count > 1 {
             (node_count * (node_count - 1)) / 2
         } else {
             0
         };
-        
+
         let density = if max_edges > 0 {
             edge_count as f64 / max_edges as f64
         } else {
             0.0
         };
 
-        let total_degree: usize = self.graph.node_indices()
+        let total_degree: usize = self
+            .graph
+            .node_indices()
             .map(|node| self.graph.neighbors(node).count())
             .sum();
-        
+
         let avg_degree = if node_count > 0 {
             total_degree as f64 / node_count as f64
         } else {
@@ -154,11 +162,15 @@ impl ColumnGraph {
             edges: Vec<(usize, usize, f32)>,
         }
 
-        let nodes: Vec<_> = self.graph.node_indices()
+        let nodes: Vec<_> = self
+            .graph
+            .node_indices()
             .map(|idx| (idx.index(), self.graph[idx].clone()))
             .collect();
 
-        let edges: Vec<_> = self.graph.edge_indices()
+        let edges: Vec<_> = self
+            .graph
+            .edge_indices()
             .map(|edge| {
                 let (a, b) = self.graph.edge_endpoints(edge).unwrap();
                 let weight = *self.graph.edge_weight(edge).unwrap();
@@ -179,20 +191,20 @@ impl ColumnGraph {
 
         let data: SerializedGraph = serde_json::from_str(json)?;
         let mut graph = Self::new();
-        
+
         let mut index_map = HashMap::new();
-        
+
         for (old_idx, node) in data.nodes {
             let new_idx = graph.add_node(node);
             index_map.insert(old_idx, new_idx);
         }
-        
+
         for (a_idx, b_idx, weight) in data.edges {
             if let (Some(&a), Some(&b)) = (index_map.get(&a_idx), index_map.get(&b_idx)) {
                 graph.add_edge(a, b, weight);
             }
         }
-        
+
         Ok(graph)
     }
 }

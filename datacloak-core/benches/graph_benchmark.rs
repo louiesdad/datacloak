@@ -31,7 +31,7 @@ fn bench_graph_construction(c: &mut Criterion) {
                 .iter()
                 .map(|col| graph.add_node(col.clone()))
                 .collect();
-            
+
             // Add edges with decreasing similarity
             for i in 0..node_indices.len() {
                 for j in i + 1..node_indices.len() {
@@ -53,7 +53,7 @@ fn bench_graph_operations(c: &mut Criterion) {
         .iter()
         .map(|col| graph.add_node(col.clone()))
         .collect();
-    
+
     // Add edges
     for i in 0..node_indices.len() {
         for j in i + 1..((i + 10).min(node_indices.len())) {
@@ -90,11 +90,11 @@ fn bench_graph_operations(c: &mut Criterion) {
 
 fn measure_large_graph_performance() {
     println!("\n=== Large Graph Performance Test ===");
-    
+
     let start = Instant::now();
     let columns = generate_test_columns(1000);
     println!("Generated 1000 columns in {:?}", start.elapsed());
-    
+
     let start = Instant::now();
     let mut graph = ColumnGraph::new();
     let node_indices: Vec<_> = columns
@@ -102,7 +102,7 @@ fn measure_large_graph_performance() {
         .map(|col| graph.add_node(col.clone()))
         .collect();
     println!("Added 1000 nodes in {:?}", start.elapsed());
-    
+
     let start = Instant::now();
     let mut edge_count = 0;
     for i in 0..node_indices.len() {
@@ -115,13 +115,16 @@ fn measure_large_graph_performance() {
         }
     }
     println!("Added {} edges in {:?}", edge_count, start.elapsed());
-    
+
     let start = Instant::now();
     let metrics = graph.get_metrics();
     println!("Calculated metrics in {:?}", start.elapsed());
     println!("Graph metrics: {:?}", metrics);
-    
-    assert!(start.elapsed().as_secs() < 5, "Graph construction took too long!");
+
+    assert!(
+        start.elapsed().as_secs() < 5,
+        "Graph construction took too long!"
+    );
 }
 
 criterion_group!(benches, bench_graph_construction, bench_graph_operations);

@@ -102,6 +102,9 @@ secrets/
 !examples/*.json
 !tests/fixtures/*.json
 
+# Test data directory
+test_data/
+
 # Binaries
 *.exe
 *.dll

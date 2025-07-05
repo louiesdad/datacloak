@@ -60,8 +60,8 @@ mod tests {
         let vec1: Vec<f32> = (0..256).map(|i| (i as f32).sin()).collect();
         let vec2: Vec<f32> = (0..256).map(|i| (i as f32).cos()).collect();
 
-        let scalar_result = crate::graph::SimilarityCalculator::new()
-            .cosine_similarity(&vec1, &vec2);
+        let scalar_result =
+            crate::graph::SimilarityCalculator::new().cosine_similarity(&vec1, &vec2);
         let simd_result = cosine_similarity_simd(&vec1, &vec2);
 
         assert!((scalar_result - simd_result).abs() < 0.0001);
@@ -71,10 +71,12 @@ mod tests {
     fn test_simd_non_aligned_sizes() {
         for size in [7, 15, 17, 31, 33, 63, 65, 127, 129].iter() {
             let vec1: Vec<f32> = (0..*size).map(|i| i as f32 / *size as f32).collect();
-            let vec2: Vec<f32> = (0..*size).map(|i| 1.0 - (i as f32 / *size as f32)).collect();
+            let vec2: Vec<f32> = (0..*size)
+                .map(|i| 1.0 - (i as f32 / *size as f32))
+                .collect();
 
-            let scalar_result = crate::graph::SimilarityCalculator::new()
-                .cosine_similarity(&vec1, &vec2);
+            let scalar_result =
+                crate::graph::SimilarityCalculator::new().cosine_similarity(&vec1, &vec2);
             let simd_result = cosine_similarity_simd(&vec1, &vec2);
 
             assert!(

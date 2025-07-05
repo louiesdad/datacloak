@@ -1,16 +1,23 @@
 use datacloak_core::cache::ObfuscationCache;
 use rand::Rng;
 use std::env;
+use std::sync::Mutex;
 use tempfile::tempdir;
+
+// Mutex to ensure cache crypto tests don't interfere with each other
+static TEST_MUTEX: Mutex<()> = Mutex::new(());
 
 #[tokio::test]
 async fn test_cache_encryption_round_trip() {
+    let _guard = TEST_MUTEX.lock().unwrap();
+
     // Generate a random key for testing
     let mut rng = rand::rng();
     let key: Vec<u8> = (0..32).map(|_| rng.random()).collect();
     let key_hex = hex::encode(&key);
 
-    // Set the environment variable
+    // Save original key and set test key
+    let original_key = env::var("DATACLOAK_CACHE_KEY").ok();
     env::set_var("DATACLOAK_CACHE_KEY", &key_hex);
 
     let dir = tempdir().unwrap();
@@ -62,17 +69,33 @@ async fn test_cache_encryption_round_trip() {
     // Verify cache stats
     let stats = cache2.stats();
     assert_eq!(stats.total_entries, 100);
+
+    // Restore original environment
+    if let Some(key) = original_key {
+        env::set_var("DATACLOAK_CACHE_KEY", key);
+    } else {
+        env::remove_var("DATACLOAK_CACHE_KEY");
+    }
 }
 
 #[tokio::test]
 async fn test_cache_encryption_with_invalid_key() {
+    let _guard = TEST_MUTEX.lock().unwrap();
+
     // Test with missing environment variable
+    let original_key = env::var("DATACLOAK_CACHE_KEY").ok();
     env::remove_var("DATACLOAK_CACHE_KEY");
 
     let dir = tempdir().unwrap();
     let cache_file = dir.path().join("test_cache.bin");
 
     let result = ObfuscationCache::with_storage(cache_file);
+
+    // Restore original key if it existed
+    if let Some(key) = original_key {
+        env::set_var("DATACLOAK_CACHE_KEY", key);
+    }
+
     assert!(result.is_err());
     if let Err(e) = result {
         assert!(e.to_string().contains("DATACLOAK_CACHE_KEY"));
@@ -81,13 +104,22 @@ async fn test_cache_encryption_with_invalid_key() {
 
 #[tokio::test]
 async fn test_cache_encryption_with_wrong_key_size() {
+    let _guard = TEST_MUTEX.lock().unwrap();
+
     // Test with invalid key size (16 bytes instead of 32)
-    env::set_var("DATACLOAK_CACHE_KEY", "0123456789abcdef0123456789abcdef");
+    let original_key = env::var("DATACLOAK_CACHE_KEY").ok();
+    env::set_var("DATACLOAK_CACHE_KEY", "0123456789abcdef"); // Wrong size: 16 chars instead of 64
 
     let dir = tempdir().unwrap();
     let cache_file = dir.path().join("test_cache.bin");
 
     let result = ObfuscationCache::with_storage(cache_file);
+
+    // Restore original key if it existed
+    if let Some(key) = original_key {
+        env::set_var("DATACLOAK_CACHE_KEY", key);
+    }
+
     assert!(result.is_err());
     if let Err(e) = result {
         assert!(e.to_string().contains("Invalid DATACLOAK_CACHE_KEY size"));
@@ -96,7 +128,10 @@ async fn test_cache_encryption_with_wrong_key_size() {
 
 #[tokio::test]
 async fn test_cache_encryption_with_invalid_hex() {
+    let _guard = TEST_MUTEX.lock().unwrap();
+
     // Test with invalid hex characters
+    let original_key = env::var("DATACLOAK_CACHE_KEY").ok();
     env::set_var(
         "DATACLOAK_CACHE_KEY",
         "xyz1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
@@ -106,6 +141,12 @@ async fn test_cache_encryption_with_invalid_hex() {
     let cache_file = dir.path().join("test_cache.bin");
 
     let result = ObfuscationCache::with_storage(cache_file);
+
+    // Restore original key if it existed
+    if let Some(key) = original_key {
+        env::set_var("DATACLOAK_CACHE_KEY", key);
+    }
+
     assert!(result.is_err());
     if let Err(e) = result {
         assert!(e.to_string().contains("Invalid DATACLOAK_CACHE_KEY format"));
@@ -114,6 +155,8 @@ async fn test_cache_encryption_with_invalid_hex() {
 
 #[tokio::test]
 async fn test_cache_decryption_with_wrong_key() {
+    let _guard = TEST_MUTEX.lock().unwrap();
+
     // Create and save cache with one key
     let key1 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     env::set_var("DATACLOAK_CACHE_KEY", key1);
@@ -142,10 +185,13 @@ async fn test_cache_decryption_with_wrong_key() {
 
 #[tokio::test]
 async fn test_large_cache_encryption_performance() {
+    let _guard = TEST_MUTEX.lock().unwrap();
+
     use std::time::Instant;
 
     let mut rng = rand::rng();
     let key: Vec<u8> = (0..32).map(|_| rng.random()).collect();
+    let original_key = env::var("DATACLOAK_CACHE_KEY").ok();
     env::set_var("DATACLOAK_CACHE_KEY", hex::encode(&key));
 
     let dir = tempdir().unwrap();
@@ -196,4 +242,11 @@ async fn test_large_cache_encryption_performance() {
         cache2.get_original("TOKEN-5000"),
         Some("user5000@example.com".to_string())
     );
+
+    // Restore original environment
+    if let Some(key) = original_key {
+        env::set_var("DATACLOAK_CACHE_KEY", key);
+    } else {
+        env::remove_var("DATACLOAK_CACHE_KEY");
+    }
 }
